@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title id="pageTitle">Копилка</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --curtain-dark:#2a0810; --curtain:#4a0f1c; --curtain-light:#6b1a2b;
+    --gold:#cda349; --cream:#f3e6d3; --glass:rgba(255,255,255,.14);
+    --ink:#1c0a0d;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%;}
+  body{
+    margin:0; min-height:100%; font-family:'Inter',sans-serif; color:var(--cream);
+    background: radial-gradient(ellipse at center top, var(--curtain-light), var(--curtain) 55%, var(--curtain-dark) 100%);
+    overflow-x:hidden;
+  }
+  .curtain-fold{
+    position:fixed; inset:0; z-index:0; filter:blur(3px);
+    background:
+      repeating-linear-gradient(90deg,
+        rgba(0,0,0,.28) 0 40px,
+        rgba(255,255,255,.05) 40px 46px,
+        rgba(0,0,0,.05) 46px 90px);
+    opacity:.8;
+  }
+  .curtain-vignette{position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:radial-gradient(ellipse at 50% 30%, transparent 30%, rgba(0,0,0,.55) 100%);}
+  header{position:relative; z-index:2; text-align:center; padding:28px 16px 10px;}
+  h1{font-family:'Nunito',sans-serif; font-weight:900; font-size:clamp(28px,5vw,42px); margin:0; letter-spacing:.5px; text-shadow:0 2px 12px rgba(0,0,0,.5);}
+  nav{position:relative; z-index:2; display:flex; justify-content:center; gap:8px; margin:18px 0 8px; flex-wrap:wrap;}
+  nav button{
+    font-family:'Nunito',sans-serif; font-weight:800; font-size:15px; background:rgba(20,8,10,.35); border:1px solid rgba(205,163,73,.4);
+    color:var(--cream); padding:9px 20px; border-radius:2px; cursor:pointer; transition:.2s;
+  }
+  nav button.active{background:var(--gold); color:var(--ink); border-color:var(--gold); font-weight:600;}
+  nav button:hover:not(.active){border-color:var(--gold);}
+  main{position:relative; z-index:2; max-width:640px; margin:0 auto; padding:10px 16px 60px; perspective:1200px;}
+  .view{display:none;} .view.active{display:block;}
+  .view.fly-forward{
+    display:block; transform:translateZ(420px) scale(1.55); opacity:0;
+    transition:transform 280ms cubic-bezier(.4,0,.85,1), opacity 260ms ease-in;
+  }
+  .view.approach-start{ transform:translateZ(-620px) scale(0.5); opacity:0; }
+  .view.approach-end{
+    transform:translateZ(0) scale(1); opacity:1;
+    transition:transform 480ms cubic-bezier(.16,.8,.3,1), opacity 420ms ease-out;
+  }
+
+  /* ---- занавес-переход между вкладками ---- */
+  .curtain-overlay{position:fixed; inset:0; z-index:40; pointer-events:none;}
+  .curtain-overlay.active{pointer-events:auto;}
+  .curtain-panel{
+    position:absolute; top:0; bottom:0; width:54%;
+    background:
+      repeating-linear-gradient(90deg, rgba(0,0,0,.3) 0 30px, rgba(255,255,255,.07) 30px 36px, transparent 36px 64px),
+      linear-gradient(180deg, var(--curtain-light), var(--curtain) 55%, var(--curtain-dark) 100%);
+    box-shadow: inset 0 0 90px 30px rgba(0,0,0,.55);
+    transition:transform 300ms cubic-bezier(.6,0,.4,1);
+  }
+  .curtain-panel.left{ left:0; transform:translateX(-102%); border-right:3px solid rgba(205,163,73,.5); }
+  .curtain-panel.right{ right:0; transform:translateX(102%); border-left:3px solid rgba(205,163,73,.5); }
+  .curtain-overlay.closed .curtain-panel{ transform:translateX(0); }
+  .curtain-overlay.opening .curtain-panel{ transition-duration:480ms; transition-timing-function:cubic-bezier(.2,.7,.3,1); }
+
+  @media (prefers-reduced-motion: reduce){
+    .view.fly-forward, .view.approach-start, .view.approach-end{ transition:none !important; transform:none !important; opacity:1 !important; }
+    .curtain-panel{ transition:none !important; }
+  }
+
+  /* ---- piggy bank ---- */
+  .stage{display:flex; flex-direction:column; align-items:center; margin-top:10px;}
+  .bank-wrap{position:relative; display:flex; flex-direction:column; align-items:center;}
+  #bankCanvas{width:min(320px,82vw); height:min(320px,82vw); cursor:grab; touch-action:none;}
+  #bankCanvas:active{cursor:grabbing;}
+  .bank-fallback{font-size:90px; filter:drop-shadow(0 18px 24px rgba(0,0,0,.5));}
+  .drag-hint{font-size:11px; opacity:.5; margin-top:-4px;}
+  .winner-name{font-family:'Nunito',sans-serif; font-weight:800; font-size:17px; color:var(--gold); margin:-4px 0 6px; text-align:center; text-shadow:0 2px 8px rgba(0,0,0,.6);}
+  #confettiCanvas{position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:500; display:none;}
+  .count{font-family:'Nunito',sans-serif; font-weight:800; font-size:15px; color:var(--gold); margin-top:6px;}
+  .contest-banner{margin-top:14px; text-align:center; font-size:14px; color:var(--cream); background:rgba(0,0,0,.25); border:1px solid rgba(205,163,73,.35); border-radius:4px; padding:10px 14px;}
+
+  /* ---- chat ---- */
+  .chat{margin-top:26px; background:rgba(0,0,0,.28); border:1px solid rgba(205,163,73,.25); border-radius:6px; overflow:hidden;}
+  .chat-head{padding:10px 14px; font-family:'Nunito',sans-serif; font-weight:800; font-size:14px; border-bottom:1px solid rgba(205,163,73,.2); color:var(--gold);}
+  .chat-log{max-height:180px; overflow-y:auto; padding:10px 14px; display:flex; flex-direction:column; gap:8px; font-size:13.5px;}
+  .chat-log .msg{display:flex; align-items:flex-start; gap:8px;}
+  .chat-avatar{width:22px; height:22px; border-radius:50%; object-fit:cover; flex-shrink:0; margin-top:1px; border:1px solid rgba(205,163,73,.3);}
+  .chat-avatar-empty{background:#000; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; font-family:'Nunito',sans-serif;}
+  .shop-avatar-emoji{background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; font-size:13px;}
+  .msg-text{flex:1; min-width:0;}
+  .chat-log span.name{color:var(--gold); margin-right:6px;}
+  .chat-form{display:flex; border-top:1px solid rgba(205,163,73,.2);}
+  .chat-form input{flex:1; background:transparent; border:none; padding:10px 12px; color:var(--cream); font-family:inherit; font-size:13.5px; outline:none;}
+  .chat-form button{background:none; border:none; color:var(--gold); padding:0 16px; cursor:pointer; font-weight:600;}
+  .chat-note{font-size:11.5px; opacity:.55; margin-top:6px; text-align:center;}
+
+  /* ---- workshop ---- */
+  .desk{background:linear-gradient(180deg,#5c3a22,#3e2414); border-radius:8px; padding:22px 18px; display:flex; flex-direction:column; align-items:center; box-shadow:inset 0 0 40px rgba(0,0,0,.4);}
+  .coin-wrap{position:relative; width:220px; height:220px;}
+  .coin-bg{position:absolute; inset:0; border-radius:50%; box-shadow:0 8px 20px rgba(0,0,0,.5); border:4px solid #8a6d2f; box-sizing:border-box; background:#e8d6a8;}
+  #coinCanvas{position:absolute; inset:0; border-radius:50%; cursor:crosshair; touch-action:none;}
+  .tools{display:flex; gap:14px; align-items:center; margin-top:16px; flex-wrap:wrap; justify-content:center;}
+  .tools label{font-size:12.5px; opacity:.85;}
+  input[type=color]{width:34px; height:34px; border:none; background:none; cursor:pointer;}
+  input[type=range]{accent-color:var(--gold);}
+  .btn{font-family:'Nunito',sans-serif; background:var(--gold); color:var(--ink); border:none; padding:10px 22px; border-radius:2px; font-weight:800; cursor:pointer; margin-top:16px;}
+  .btn.secondary{background:transparent; color:var(--cream); border:1px solid rgba(255,255,255,.3);}
+  .row{display:flex; gap:10px;}
+
+  /* ---- gallery ---- */
+  .winners-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:16px;}
+  .winner-card{background:rgba(20,8,10,.45); border:1px solid rgba(205,163,73,.35); border-radius:8px; padding:16px; text-align:center;}
+  .winner-card.latest{border-color:var(--gold); box-shadow:0 0 0 1px rgba(205,163,73,.4);}
+  .winner-coin{width:100px; height:100px; border-radius:50%; margin:0 auto 10px; box-shadow:0 10px 26px rgba(0,0,0,.5);}
+  .winner-card.latest .winner-coin{width:140px; height:140px;}
+  .winner-label{font-family:'Nunito',sans-serif; font-weight:800; color:var(--gold); font-size:14px;}
+  .winner-sub{opacity:.65; font-size:11.5px; margin-top:3px;}
+  .empty{opacity:.6; text-align:center; padding:30px 10px; font-size:14px;}
+
+  /* ---- пьедестал зрительских симпатий + голосование ---- */
+  .podium-section{margin-bottom:28px; padding-bottom:22px; border-bottom:1px solid rgba(205,163,73,.25);}
+  .podium-title{font-family:'Nunito',sans-serif; font-weight:800; font-size:18px; color:var(--gold); text-align:center; margin-bottom:16px;}
+  .podium-row{display:flex; align-items:flex-end; justify-content:center; gap:10px; margin-bottom:12px;}
+  .podium-slot{background:rgba(20,8,10,.5); border:1px solid rgba(205,163,73,.35); border-radius:8px 8px 0 0; padding:12px 10px; text-align:center; width:110px;}
+  .podium-slot.first{border-color:var(--gold); box-shadow:0 0 0 1px rgba(205,163,73,.4); padding-top:20px; order:2;}
+  .podium-slot.second{opacity:.92; order:1;}
+  .podium-slot.third{opacity:.85; order:3;}
+  .podium-medal{font-size:22px;}
+  .podium-coin{width:64px; height:64px; border-radius:50%; margin:6px auto; display:block; box-shadow:0 8px 18px rgba(0,0,0,.5);}
+  .podium-slot.first .podium-coin{width:84px; height:84px;}
+  .podium-name{font-size:12px; font-weight:700;}
+  .podium-votes{font-size:11px; opacity:.65; margin-top:2px;}
+  .vote-sub{font-size:12px; opacity:.65; text-align:center; margin-bottom:14px; line-height:1.5;}
+  .vote-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:10px;}
+  .vote-item{background:rgba(255,255,255,.04); border:1px solid rgba(205,163,73,.2); border-radius:6px; padding:8px; text-align:center;}
+  .vote-item.voted{border-color:#9fe834;}
+  .vote-coin{width:56px; height:56px; border-radius:50%; margin:0 auto 6px; display:block;}
+  .vote-owner{font-size:11px; opacity:.75; margin-bottom:2px;}
+  .vote-count{font-size:11px; color:var(--gold); margin-bottom:6px;}
+  .vote-btn{font-family:'Nunito',sans-serif; font-weight:800; font-size:11px; border:none; border-radius:4px; padding:6px 8px; width:100%; cursor:pointer; background:rgba(255,255,255,.1); color:var(--cream);}
+  .vote-item.voted .vote-btn{background:#9fe834; color:#132000;}
+
+  /* ---- путеводитель по сайту ---- */
+  .help-fab{
+    position:fixed; bottom:calc(16px + env(safe-area-inset-bottom,0px)); right:16px; z-index:45;
+    width:40px; height:40px; border-radius:50%;
+    background:rgba(0,0,0,.45); border:1px solid rgba(205,163,73,.5); color:var(--gold);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px;
+    cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,.4); user-select:none; transition:.2s;
+  }
+  .help-fab:hover{ background:rgba(0,0,0,.65); border-color:var(--gold); }
+  .help-fab.pulse{ animation: fabPulse 1.4s ease-in-out infinite; }
+  @keyframes fabPulse{
+    0%,100%{ box-shadow:0 6px 16px rgba(0,0,0,.4); }
+    50%{ box-shadow:0 6px 16px rgba(0,0,0,.4), 0 0 0 9px rgba(159,232,52,.3), 0 0 22px rgba(159,232,52,.65); }
+  }
+  .help-callout{
+    position:fixed; bottom:calc(16px + 40px + 12px + env(safe-area-inset-bottom,0px)); right:16px; z-index:46;
+    max-width:200px; padding:9px 13px; border-radius:12px;
+    background:rgba(0,0,0,.78); border:1px solid rgba(159,232,52,.55); color:#fff;
+    font-family:'Nunito',sans-serif; font-size:13px; line-height:1.3;
+    box-shadow:0 6px 16px rgba(0,0,0,.4);
+    opacity:0; transform:translateY(6px); transition:opacity .3s, transform .3s;
+    pointer-events:none;
+  }
+  .help-callout.show{ opacity:1; transform:translateY(0); pointer-events:auto; }
+  .help-callout-close{
+    position:absolute; top:-7px; right:-7px; width:20px; height:20px; border-radius:50%;
+    background:rgba(0,0,0,.85); border:1px solid rgba(159,232,52,.6); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:12px; line-height:1;
+    cursor:pointer; user-select:none;
+  }
+  .help-callout-close:hover{ background:rgba(0,0,0,1); }
+  .lang-fab{
+    position:fixed; bottom:calc(16px + env(safe-area-inset-bottom,0px)); left:16px; z-index:45;
+    height:34px; padding:0 12px; border-radius:17px;
+    background:rgba(0,0,0,.45); border:1px solid rgba(205,163,73,.5); color:var(--gold);
+    display:flex; align-items:center; justify-content:center; font-family:'Nunito',sans-serif; font-weight:800; font-size:12.5px;
+    cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,.4); user-select:none; transition:.2s;
+  }
+  .lang-fab:hover{ background:rgba(0,0,0,.65); border-color:var(--gold); }
+  .lang-menu{
+    position:fixed; bottom:calc(16px + 34px + 8px + env(safe-area-inset-bottom,0px)); left:16px; z-index:46;
+    display:none; flex-direction:column; min-width:130px; background:rgba(20,8,10,.97);
+    border:1px solid rgba(205,163,73,.5); border-radius:8px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,.5);
+  }
+  .lang-option{
+    padding:9px 14px; font-size:13px; color:var(--cream); cursor:pointer; white-space:nowrap;
+    display:flex; align-items:center; gap:8px;
+  }
+  .lang-option:hover{ background:rgba(255,255,255,.08); }
+  .lang-option.active{ color:#9fe834; font-weight:800; }
+  #tourDim{position:fixed; inset:0; z-index:95; background:rgba(10,3,5,.72); display:none;}
+  #tourHighlight{
+    position:fixed; z-index:96; border:2px solid #9fe834; border-radius:10px; display:none;
+    box-shadow:0 0 0 4000px rgba(10,3,5,.72), 0 0 22px rgba(159,232,52,.6);
+    transition:top .3s, left .3s, width .3s, height .3s; pointer-events:none;
+  }
+  #tourCard{
+    position:fixed; z-index:97; display:none; max-width:300px; width:calc(100vw - 32px);
+    background:rgba(20,8,10,.97); border:1px solid rgba(159,232,52,.5); border-radius:8px;
+    padding:18px 16px 16px; box-shadow:0 20px 50px rgba(0,0,0,.6); transition:top .3s, left .3s;
+    box-sizing:border-box;
+  }
+  .tour-title{font-family:'Nunito',sans-serif; font-weight:800; font-size:15.5px; color:#9fe834; margin-bottom:8px;}
+  .tour-text{font-size:13px; line-height:1.55; opacity:.9;}
+  .tour-foot{display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:14px;}
+  .tour-dots{display:flex; gap:4px;}
+  .tour-dot{width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,.25); flex-shrink:0;}
+  .tour-dot.active{background:#9fe834;}
+  .tour-btns{display:flex; align-items:center; justify-content:space-between; gap:6px; width:100%;}
+  .tour-btns-right{display:flex; gap:6px; margin-left:auto;}
+  .tour-btns button{
+    font-family:'Nunito',sans-serif; font-weight:800; font-size:11.5px; border:none; border-radius:4px;
+    padding:7px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0;
+  }
+  .tour-skip{background:none; color:var(--cream); opacity:.6; padding-left:0;}
+  .tour-skip:hover{opacity:1;}
+  .tour-next{background:#9fe834; color:#132000;}
+  .tour-back{background:rgba(255,255,255,.1); color:var(--cream);}
+
+  /* ---- flying coin ---- */
+  #flyingCoin{position:fixed; width:70px; height:70px; border-radius:50%; z-index:50; pointer-events:none; box-shadow:0 6px 16px rgba(0,0,0,.5); display:none;}
+
+  @media (prefers-reduced-motion: reduce){ #flyingCoin{transition:none !important;} }
+
+  /* ---- тост-уведомление (вместо alert(), который блокируется в песочнице артефакта) ---- */
+  .toast{
+    position:fixed; bottom:calc(22px + env(safe-area-inset-bottom,0px)); left:50%;
+    transform:translateX(-50%) translateY(16px);
+    background:rgba(20,8,10,.96); border:1px solid rgba(205,163,73,.5); color:var(--cream);
+    padding:12px 20px; border-radius:6px; font-size:13.5px; line-height:1.4;
+    max-width:min(340px,86vw); text-align:center; box-shadow:0 14px 34px rgba(0,0,0,.55);
+    z-index:70; opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: reduce){ .toast{ transition:none !important; } }
+
+  /* ---- "аккаунт" (никнейм, только в этом браузере) ---- */
+  .account-fab{
+    position:fixed; top:calc(14px + env(safe-area-inset-top,0px)); right:16px; z-index:45;
+    width:46px; height:46px; border-radius:50%;
+    background:rgba(0,0,0,.4); border:1px solid rgba(205,163,73,.5);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; font-family:'Nunito',sans-serif; font-size:17px; font-weight:800; color:var(--gold);
+    box-shadow:0 6px 18px rgba(0,0,0,.45); transition:.2s; user-select:none;
+  }
+  .account-fab:hover{ border-color:var(--gold); background:rgba(0,0,0,.6); }
+  .shop-fab{
+    position:fixed; top:calc(14px + env(safe-area-inset-top,0px)); left:16px; z-index:45;
+    width:46px; height:46px; border-radius:50%;
+    background:rgba(0,0,0,.4); border:1px solid #9fe834;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; font-size:20px; box-shadow:0 6px 18px rgba(0,0,0,.45), 0 0 10px rgba(159,232,52,.35);
+    transition:.2s; user-select:none; color:#9fe834;
+  }
+  .shop-fab:hover{ background:rgba(0,0,0,.6); box-shadow:0 6px 18px rgba(0,0,0,.45), 0 0 16px rgba(159,232,52,.6); }
+  .balance-fab{
+    position:fixed; top:calc(14px + env(safe-area-inset-top,0px)); right:70px; z-index:45;
+    height:46px; padding:0 14px; border-radius:23px;
+    background:rgba(0,0,0,.4); border:1px solid rgba(205,163,73,.5);
+    display:flex; align-items:center; gap:6px;
+    font-family:'Nunito',sans-serif; font-size:14px; font-weight:800; color:var(--gold);
+    box-shadow:0 6px 18px rgba(0,0,0,.45); user-select:none; white-space:nowrap; cursor:pointer; transition:.2s;
+  }
+  .balance-fab:hover{ border-color:#ffe9b0; background:rgba(0,0,0,.6); }
+  .coin-ico{display:inline-block; width:13px; height:13px; border-radius:50%; flex-shrink:0;
+    background:radial-gradient(circle at 32% 28%, #fff1cf 0%, #e8c374 35%, #a8762f 100%);
+    box-shadow:0 0 0 1px rgba(0,0,0,.35) inset, 0 1px 1px rgba(0,0,0,.3); vertical-align:-2px;}
+  .coin-ico.lg{width:18px; height:18px;}
+  #accountFabAvatar{width:100%; height:100%; border-radius:50%; object-fit:cover;}
+  .fab-trophy{
+    position:absolute; bottom:-2px; right:-2px; width:18px; height:18px; border-radius:50%;
+    background:var(--gold); display:flex; align-items:center; justify-content:center; font-size:10px;
+    box-shadow:0 2px 6px rgba(0,0,0,.5);
+  }
+  .login-overlay{
+    position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center;
+    background:rgba(10,3,5,.78); backdrop-filter:blur(4px); padding:20px;
+  }
+  .login-box{
+    position:relative;
+    background:rgba(20,8,10,.94); border:1px solid rgba(205,163,73,.4); border-radius:8px;
+    padding:26px 24px; max-width:340px; width:100%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.6);
+    max-height:min(82vh,580px); overflow-y:auto;
+  }
+  .login-close{
+    position:absolute; top:8px; right:10px; background:none; border:none; color:var(--cream);
+    font-size:22px; line-height:1; cursor:pointer; opacity:.6; padding:4px 8px;
+  }
+  .login-close:hover{ opacity:1; }
+  .login-title{font-family:'Nunito',sans-serif; font-weight:800; font-size:20px; color:var(--gold); margin-bottom:8px;}
+  .login-sub{font-size:12.5px; opacity:.75; line-height:1.5; margin-bottom:18px;}
+  #loginForm{display:flex; flex-direction:column; gap:12px;}
+  #loginInput{background:rgba(255,255,255,.08); border:1px solid rgba(205,163,73,.35); border-radius:4px; padding:10px 12px; color:var(--cream); font-family:inherit; font-size:14px; outline:none;}
+
+  /* ---- профиль аккаунта (о себе, аватар, значок победителя) ---- */
+  .profile-section{margin-top:18px; padding-top:16px; border-top:1px solid rgba(205,163,73,.25); text-align:left;}
+  .profile-badge-row{min-height:22px; margin-bottom:8px;}
+  .win-badge{display:inline-block; background:rgba(205,163,73,.18); border:1px solid rgba(205,163,73,.5); color:var(--gold); font-size:12px; font-weight:800; padding:4px 10px; border-radius:20px;}
+  .profile-label{display:block; font-size:11.5px; opacity:.7; margin:10px 0 6px;}
+  #profileBio{width:100%; min-height:60px; resize:vertical; background:rgba(255,255,255,.08); border:1px solid rgba(205,163,73,.35); border-radius:4px; padding:8px 10px; color:var(--cream); font-family:inherit; font-size:13px; outline:none;}
+  .avatar-grid{display:flex; flex-wrap:wrap; gap:8px; max-height:140px; overflow-y:auto; padding:2px;}
+  .avatar-option{width:44px; height:44px; border-radius:50%; object-fit:cover; cursor:pointer; border:2px solid transparent; opacity:.75; transition:.15s; display:block;}
+  .avatar-option:hover{opacity:1;}
+  .avatar-option.selected{border-color:var(--gold); opacity:1;}
+  .avatar-empty{font-size:11.5px; opacity:.6; line-height:1.5;}
+  #saveProfileBtn{margin-top:14px; width:100%;}
+  .profile-card{border-radius:8px; transition:.2s;}
+  .profile-card.themed{padding:12px; margin:0 -4px;}
+
+  /* ---- магазин косметики ---- */
+  .shop-overlay{
+    position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center;
+    background:rgba(10,3,5,.78); backdrop-filter:blur(4px); padding:20px;
+  }
+  .shop-box{
+    position:relative;
+    background:rgba(20,8,10,.96); border:1px solid rgba(159,232,52,.4); border-radius:8px;
+    padding:26px 24px; max-width:480px; width:100%; text-align:left; box-shadow:0 20px 60px rgba(0,0,0,.6);
+    max-height:min(85vh,640px); overflow-y:auto;
+  }
+  .shop-tabs{display:flex; gap:6px; flex-wrap:wrap; margin:14px 0 16px;}
+  .shop-tab{
+    font-family:'Nunito',sans-serif; font-weight:800; font-size:12.5px; background:rgba(255,255,255,.06);
+    border:1px solid rgba(159,232,52,.3); color:var(--cream); padding:7px 12px; border-radius:16px; cursor:pointer;
+  }
+  .shop-tab.active{ background:#9fe834; color:#132000; border-color:#9fe834; }
+  .shop-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:12px;}
+  .shop-item{
+    background:rgba(255,255,255,.05); border:1px solid rgba(205,163,73,.25); border-radius:8px;
+    padding:12px 10px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .shop-item.equipped{ border-color:#9fe834; box-shadow:0 0 0 1px rgba(159,232,52,.4); }
+  .shop-swatch{width:54px; height:54px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:26px; box-shadow:inset 0 0 0 2px rgba(255,255,255,.15);}
+  .shop-item-label{font-size:12px; font-weight:700;}
+  .shop-item-price{font-size:11.5px; opacity:.7;}
+  .shop-item button{
+    font-family:'Nunito',sans-serif; font-weight:800; font-size:11.5px; border:none; border-radius:4px;
+    padding:6px 10px; cursor:pointer; width:100%;
+  }
+  .shop-item button.buy{ background:#9fe834; color:#132000; }
+  .shop-item button.equip{ background:rgba(255,255,255,.12); color:var(--cream); border:1px solid rgba(255,255,255,.25); }
+  .shop-item button.equipped-btn{ background:transparent; color:#9fe834; border:1px solid #9fe834; cursor:default; }
+  .name-rainbow{
+    background:linear-gradient(90deg,#ff6b6b,#ffd166,#7ee081,#5ec8f2,#c48aff,#ff6b6b);
+    background-size:300% 100%; -webkit-background-clip:text; background-clip:text; color:transparent;
+    animation:rainbowShift 3.5s linear infinite;
+  }
+  @keyframes rainbowShift{ 0%{background-position:0% 50%;} 100%{background-position:300% 50%;} }
+  @media (prefers-reduced-motion: reduce){ .name-rainbow{ animation:none; } }
+</style>
+</head>
+<body>
+<div class="curtain-fold"></div>
+<div class="curtain-vignette"></div>
+<div class="curtain-overlay" id="curtainOverlay">
+  <div class="curtain-panel left"></div>
+  <div class="curtain-panel right"></div>
+</div>
+
+<div class="shop-fab" id="shopFab" title="Магазин">🛒</div>
+<div class="balance-fab" id="balanceFab" title="Тестовое пополнение: нажмите, чтобы получить +1000 монет"><span class="coin-ico lg"></span><span id="balanceAmount">100</span></div>
+<div class="account-fab" id="accountFab" title="Аккаунт">
+  <img id="accountFabAvatar" style="display:none;" alt="">
+  <span id="accountFabGlyph">👤</span>
+  <span id="accountFabTrophy" class="fab-trophy" style="display:none;">🏆</span>
+</div>
+<div class="lang-fab" id="langFab" title="Choose language">EN</div>
+<div class="lang-menu" id="langMenu">
+  <div class="lang-option" id="langOptRu" data-lang="ru">Русский</div>
+  <div class="lang-option" id="langOptEn" data-lang="en">English</div>
+</div>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <button type="button" class="login-close" id="loginClose" aria-label="Закрыть">×</button>
+    <div class="login-title" id="loginTitleText">Аккаунт</div>
+    <div class="login-sub" id="loginSubText">Укажите имя — оно будет видно в чате и копилке. Один аккаунт — одна монета за раунд конкурса.</div>
+    <form id="loginForm">
+      <input id="loginInput" type="text" maxlength="24" placeholder="Ваше имя" autocomplete="off" required>
+      <button type="submit" class="btn" id="loginSaveBtn">Сохранить</button>
+    </form>
+
+    <div id="profileSection" class="profile-section" style="display:none;">
+      <div id="profileCard" class="profile-card">
+        <div class="profile-badge-row" id="profileBadgeRow"></div>
+        <label class="profile-label" id="profileBioLabelText">О себе</label>
+        <textarea id="profileBio" maxlength="160" placeholder="Расскажите немного о себе…"></textarea>
+        <label class="profile-label" id="profileAvatarLabelText">Аватар — выберите одну из нарисованных вами монет</label>
+        <div id="avatarGrid" class="avatar-grid"></div>
+      </div>
+      <button type="button" class="btn secondary" id="saveProfileBtn">Сохранить профиль</button>
+    </div>
+  </div>
+</div>
+
+<div class="shop-overlay" id="shopOverlay">
+  <div class="shop-box">
+    <button type="button" class="login-close" id="shopClose" aria-label="Закрыть">×</button>
+    <div class="login-title" id="shopTitleText" style="color:#9fe834;">Магазин</div>
+    <div class="login-sub" id="shopIntroText">Тратьте <span class="coin-ico"></span> виртуальные монеты на косметику. Это демо-витрина — реальные деньги не используются.</div>
+    <div class="shop-tabs" id="shopTabs"></div>
+    <div class="shop-grid" id="shopGrid"></div>
+  </div>
+</div>
+
+<div class="help-callout" id="helpCallout"><span class="help-callout-close" id="helpCalloutClose">×</span><span id="helpCalloutText"></span></div>
+<div class="help-fab" id="helpFab" title="Путеводитель по сайту">?</div>
+<div id="tourDim"></div>
+<div id="tourHighlight"></div>
+<div id="tourCard">
+  <div class="tour-title" id="tourTitle"></div>
+  <div class="tour-text" id="tourText"></div>
+  <div class="tour-foot">
+    <div class="tour-dots" id="tourDots"></div>
+    <div class="tour-btns">
+      <button type="button" class="tour-skip" id="tourSkip">Пропустить</button>
+      <div class="tour-btns-right">
+        <button type="button" class="tour-back" id="tourBack">Назад</button>
+        <button type="button" class="tour-next" id="tourNext">Далее</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<header><h1 id="siteTitleText">Копилка</h1></header>
+<nav>
+  <button class="tab-btn active" data-tab="home" id="navHome">Главная</button>
+  <button class="tab-btn" data-tab="workshop" id="navWorkshop">Мастерская</button>
+  <button class="tab-btn" data-tab="gallery" id="navGallery">Галерея</button>
+</nav>
+
+<main>
+  <section id="home" class="view active">
+    <div class="stage">
+      <div class="bank-wrap">
+        <canvas id="bankCanvas"></canvas>
+        <div id="bankFallback" class="bank-fallback" style="display:none;">🐷</div>
+        <div id="winnerName" class="winner-name" style="display:none;"></div>
+        <div class="drag-hint" id="dragHintText">Крутите вбок и наклоняйте вверх/вниз пальцем или мышью</div>
+      </div>
+      <div class="count" id="coinCount">В копилке: 0 монет</div>
+      <div id="contestBanner" class="contest-banner" style="display:none;"></div>
+    </div>
+    <canvas id="confettiCanvas"></canvas>
+
+    <div class="chat">
+      <div class="chat-head" id="chatHeadText">Зал ожидания</div>
+      <div class="chat-log" id="chatLog"></div>
+      <form class="chat-form" id="chatForm">
+        <input id="chatInput" type="text" maxlength="140" placeholder="Написать в чат…" autocomplete="off">
+        <button type="submit" id="chatSendBtn">Отпр.</button>
+      </form>
+    </div>
+    <div class="chat-note" id="chatNoteText">Демо: чат, копилка и имя аккаунта хранятся только в этом браузере. Ограничение «одна монета за раунд» — демонстрация механики, а не настоящая защита: для реального общего чата и надёжного учёта аккаунтов нужен отдельный бэкенд.</div>
+  </section>
+
+  <section id="workshop" class="view">
+    <div class="desk">
+      <div class="coin-wrap">
+        <div id="coinBg" class="coin-bg"></div>
+        <canvas id="coinCanvas" width="220" height="220"></canvas>
+      </div>
+      <div class="tools">
+        <label><span id="fillLabelText">Заливка</span> <input type="color" id="coinFillColor" value="#e8d6a8"></label>
+        <label><span id="brushColorLabelText">Цвет кисти</span> <input type="color" id="brushColor" value="#cda349"></label>
+        <label><span id="brushSizeLabelText">Кисть</span> <input type="range" id="brushSize" min="2" max="20" value="6"></label>
+      </div>
+      <div class="row">
+        <button class="btn secondary" id="clearCoin">Очистить</button>
+        <button class="btn" id="throwCoin">Бросить в копилку</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="gallery" class="view">
+    <div id="galleryWrap"></div>
+  </section>
+</main>
+
+<img id="flyingCoin" alt="">
+<div id="toast" class="toast"></div>
+
+<script>
+(function(){
+  const THRESHOLD = 5, CONTEST_MS = 15000, REOPEN_MS = 10000;
+  const store = k => { try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } };
+  const save = (k,v) => { try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} };
+
+  // ---- локализация: ru/en, хранится только в этом браузере ----
+  const I18N = {
+    ru: {
+      siteTitle:'Копилка', navHome:'Главная', navWorkshop:'Мастерская', navGallery:'Галерея',
+      dragHint:'Крутите вбок и наклоняйте вверх/вниз пальцем или мышью',
+      coinCount:'В копилке: {n} монет',
+      bannerWinner:'Победитель объявлен — загляните в Галерею! Новый конкурс через {s} с…',
+      bannerClosed:'Копилка закрыта! Розыгрыш через {s} с…',
+      winnerNameAuthor:'Автор: {name}', winnerNamePot:' — забрал(а) ',
+      chatHead:'Зал ожидания', chatPlaceholder:'Написать в чат…', chatSend:'Отпр.',
+      welcomeMsg:'Добро пожаловать! Нарисуйте монету в мастерской и бросьте её в копилку.',
+      chatNote:'Демо: чат, копилка и имя аккаунта хранятся только в этом браузере. Ограничение «одна монета за раунд» — демонстрация механики, а не настоящая защита: для реального общего чата и надёжного учёта аккаунтов нужен отдельный бэкенд.',
+      fillLabel:'Заливка', brushColorLabel:'Цвет кисти', brushSizeLabel:'Кисть',
+      clearBtn:'Очистить', throwBtn:'Бросить в копилку',
+      shopTitleAttr:'Магазин', balanceTitleAttr:'Тестовое пополнение: нажмите, чтобы получить +1000 монет',
+      accountTitleAttr:'Аккаунт', closeAria:'Закрыть',
+      loginTitle:'Аккаунт', loginSub:'Укажите имя — оно будет видно в чате и копилке. Один аккаунт — одна монета за раунд конкурса.',
+      loginNamePh:'Ваше имя', loginSave:'Сохранить',
+      profileBioLabel:'О себе', profileBioPh:'Расскажите немного о себе…',
+      profileAvatarLabel:'Аватар — выберите одну из нарисованных вами монет',
+      profileSaveBtn:'Сохранить профиль', winBadge:'🏆 Победитель конкурса',
+      avatarEmptyHistory:'Нарисуйте и бросьте монету в мастерской — она появится здесь, и её можно будет выбрать аватаром.',
+      shopTitle:'Магазин', shopIntro:'Тратьте <span class="coin-ico"></span> виртуальные монеты на косметику. Это демо-витрина — реальные деньги не используются.',
+      shopLoginFirst:'Войдите в аккаунт, чтобы покупать и примерять косметику.',
+      shopFree:'Бесплатно', shopEquipped:'Надето', shopEquip:'Надеть', shopBuy:'Купить',
+      catAvatars:'Аватары', catBackgrounds:'Фон профиля', catNameStyles:'Имя', catBankSkins:'Копилка', catSceneThemes:'Сцена и шторы',
+      itemAvatarDefault:'Без значка', itemFox:'Лис', itemTiger:'Тигр', itemOwl:'Сова', itemCrown:'Корона',
+      itemBgDefault:'Обычный', itemEmerald:'Изумрудный', itemSapphire:'Сапфировый', itemAmber:'Янтарный', itemRose:'Розовый',
+      itemNameDefault:'Золотое', itemNameEmerald:'Изумрудное', itemNameFire:'Огненное', itemNameIce:'Ледяное', itemNameRainbow:'Переливающееся',
+      itemSkinDefault:'Прозрачная', itemSkinEmerald:'Изумрудная', itemSkinSapphire:'Сапфировая', itemSkinAmber:'Янтарная', itemSkinRose:'Розовый кварц',
+      itemSceneDefault:'Бордовый театр', itemSceneEmerald:'Изумрудный театр', itemSceneMidnight:'Полночный синий', itemSceneRoyal:'Королевский фиолетовый',
+      helpTitleAttr:'Путеводитель по сайту', helpCalloutText:'Нужна помощь? Нажми «?» — путеводитель покажет всё по порядку', langChooseTitle:'Выбрать язык', tourSkip:'Пропустить', tourBack:'Назад', tourNext:'Далее', tourDone:'Готово',
+      podiumTitle:'🏛️ Пьедестал зрительских симпатий',
+      voteSub:'Голосуйте за понравившиеся монеты — учитываются все {n} монет в галерее. Следующее голосование откроется через {r} {unit}.',
+      voteUnitOne:'монету', voteUnitFew:'монеты', votesSuffix:'голос.', voteBtn:'Голосовать', votedBtn:'Ваш голос ✓',
+      guest:'Гость', winnerLatest:'Нынешний победитель', winnerRound:'Конкурс №{n}', winnerAuthorPrefix:'Автор: ',
+      winnerPastPrefix:'Прошлый конкурс · ', winnerTook:'Забрал(а) ',
+      winnerCoinAlt:'Монета-победитель', myCoinAlt:'Ваша монета',
+      galleryEmpty:'Победителя пока нет. Соберите {n} монет в копилке, чтобы начался розыгрыш.',
+      toastTopup:'Тестовое пополнение: +{n} монет.',
+      toastNotEnough:'Недостаточно монет: нужно {need}, у вас {have}.',
+      toastBought:'Куплено и надето!', toastDone:'Готово!', toastProfileSaved:'Профиль сохранён.', toastVoted:'Голос учтён!',
+      toastEmptyCoin:'Сначала нарисуйте что-нибудь на монете — пустую монету бросить нельзя.',
+      toastBankReopening:'Копилка откроется заново через несколько секунд — идёт объявление победителя.',
+      toastBankClosed:'Копилка сейчас закрыта — идёт розыгрыш.',
+      toastAlreadyThrown:'{name}, вы уже бросали монету в этом раунде. Дождитесь следующего конкурса.',
+      langToggle:'EN',
+      tourStep0Title:'Добро пожаловать в «Копилку»', tourStep0Text:'Это сайт-прототип для ознакомления. Коротко покажу, что здесь можно делать и на какие нюансы обратить внимание.',
+      tourStep1Title:'Стеклянная копилка', tourStep1Text:'Копилка в центре главной страницы. Крутите её в стороны и наклоняйте вверх-вниз мышью или пальцем — монеты внутри физически реагируют на наклон.',
+      tourStep2Title:'Розыгрыш', tourStep2Text:'Когда в копилке набирается {threshold} монет (это тестовая версия с маленьким порогом — в финальной версии сайта число монет, необходимое для розыгрыша, будет больше), начинается отсчёт, и копилка закрывается. Победитель выбирается случайно и забирает весь банк — все монеты, потраченные участниками на вход.',
+      tourStep3Title:'Чат «Зал ожидания»', tourStep3Text:'Можно написать сообщение, пока идёт ожидание. Слева от имени — аватар автора (своя монета, купленный значок или «?», если аватар не выбран).',
+      tourStep4Title:'Магазин', tourStep4Text:'Кнопка открывает магазин косметики: аватары, фон профиля, особое имя, цвет копилки и тема сцены — всё покупается за виртуальные монеты.',
+      tourStep5Title:'Баланс монет', tourStep5Text:'У каждого аккаунта стартовый баланс — {start} монет. Нарисовать монету и бросить её в копилку для участия в конкурсе стоит {cost} монет. Это тестовый сайт: нажмите на счётчик — и баланс пополнится на 1000, чтобы сразу всё опробовать.',
+      tourStep6Title:'Аккаунт', tourStep6Text:'Круглая кнопка справа сверху — вход и профиль: имя, «о себе», аватар. Один аккаунт — одна брошенная монета за раунд. Если вы побеждали в одном из розыгрышей, ваш аккаунт получит особую пометку.',
+      tourStep7Title:'Мастерская — рисуем монету', tourStep7Text:'Выберите цвет заливки и кисти и нарисуйте что-нибудь на монете пальцем или мышью. Пустую монету бросить нельзя.',
+      tourStep8Title:'Бросить в копилку', tourStep8Text:'Бросок стоит {cost} монет и отправляет вашу монету в текущий раунд конкурса.',
+      tourStep9Title:'Галерея и пьедестал', tourStep9Text:'Здесь — все прошлые победители. Когда в галерее набирается 4 монеты, открывается голосование зрителей за понравившиеся монеты: топ-3 по голосам встают на пьедестал. Каждые +4 новые монеты голосование обновляется заново, с учётом всех монет в галерее.',
+      tourStep10Title:'Это демо-прототип', tourStep10Text:'Аккаунт, баланс, чат и покупки хранятся только в этом браузере — это демонстрация механики, а не блокчейн. В будущем, при наличии лицензии, планируется переход на реальные ставки через собственную крипто-монету с проверяемо честным (provably fair) розыгрышем — и тогда каждая монета станет холстом для рекламы, логотипа или шутки автора. Нажмите «?» снизу справа, чтобы пройти этот путеводитель ещё раз.'
+    },
+    en: {
+      siteTitle:'Coin Bank', navHome:'Home', navWorkshop:'Workshop', navGallery:'Gallery',
+      dragHint:'Drag sideways and tilt up/down with your finger or mouse',
+      coinCount:'In the bank: {n} coins',
+      bannerWinner:'A winner has been announced — check out the Gallery! New round in {s}s…',
+      bannerClosed:'The bank is closed! Draw in {s}s…',
+      winnerNameAuthor:'Author: {name}', winnerNamePot:' — won ',
+      chatHead:'Waiting room', chatPlaceholder:'Write in chat…', chatSend:'Send',
+      welcomeMsg:'Welcome! Draw a coin in the Workshop and throw it into the bank.',
+      chatNote:'Demo: chat, the bank and your account name are stored only in this browser. The "one coin per round" limit is a demonstration of the mechanic, not real protection — a real shared chat and reliable accounts need a separate backend.',
+      fillLabel:'Fill', brushColorLabel:'Brush color', brushSizeLabel:'Brush size',
+      clearBtn:'Clear', throwBtn:'Throw into the bank',
+      shopTitleAttr:'Shop', balanceTitleAttr:'Test top-up: click to get +1000 coins',
+      accountTitleAttr:'Account', closeAria:'Close',
+      loginTitle:'Account', loginSub:'Enter a name — it will be shown in chat and at the bank. One account — one coin per contest round.',
+      loginNamePh:'Your name', loginSave:'Save',
+      profileBioLabel:'About me', profileBioPh:'Say a little about yourself…',
+      profileAvatarLabel:'Avatar — pick one of the coins you\'ve drawn',
+      profileSaveBtn:'Save profile', winBadge:'🏆 Contest winner',
+      avatarEmptyHistory:'Draw and throw a coin in the Workshop — it will show up here and you\'ll be able to pick it as your avatar.',
+      shopTitle:'Shop', shopIntro:'Spend <span class="coin-ico"></span> virtual coins on cosmetics. This is a demo storefront — no real money is used.',
+      shopLoginFirst:'Log in to buy and equip cosmetics.',
+      shopFree:'Free', shopEquipped:'Equipped', shopEquip:'Equip', shopBuy:'Buy',
+      catAvatars:'Avatars', catBackgrounds:'Profile background', catNameStyles:'Name', catBankSkins:'Bank skin', catSceneThemes:'Scene & curtains',
+      itemAvatarDefault:'No badge', itemFox:'Fox', itemTiger:'Tiger', itemOwl:'Owl', itemCrown:'Crown',
+      itemBgDefault:'Default', itemEmerald:'Emerald', itemSapphire:'Sapphire', itemAmber:'Amber', itemRose:'Rose',
+      itemNameDefault:'Gold', itemNameEmerald:'Emerald', itemNameFire:'Fire', itemNameIce:'Ice', itemNameRainbow:'Shimmering',
+      itemSkinDefault:'Clear', itemSkinEmerald:'Emerald', itemSkinSapphire:'Sapphire', itemSkinAmber:'Amber', itemSkinRose:'Rose quartz',
+      itemSceneDefault:'Burgundy theatre', itemSceneEmerald:'Emerald theatre', itemSceneMidnight:'Midnight blue', itemSceneRoyal:'Royal purple',
+      helpTitleAttr:'Site guide', helpCalloutText:'Need help? Tap "?" for the guided tour', langChooseTitle:'Choose language', tourSkip:'Skip', tourBack:'Back', tourNext:'Next', tourDone:'Done',
+      podiumTitle:'🏛️ Audience Favorites Podium',
+      voteSub:'Vote for the coins you like — all {n} coins in the gallery count. The next vote opens after {r} more {unit}.',
+      voteUnitOne:'coin', voteUnitFew:'coins', votesSuffix:'votes', voteBtn:'Vote', votedBtn:'Your vote ✓',
+      guest:'Guest', winnerLatest:'Current winner', winnerRound:'Round #{n}', winnerAuthorPrefix:'Author: ',
+      winnerPastPrefix:'Past round · ', winnerTook:'Won ',
+      winnerCoinAlt:'Winning coin', myCoinAlt:'Your coin',
+      galleryEmpty:'No winner yet. Collect {n} coins in the bank to start the draw.',
+      toastTopup:'Test top-up: +{n} coins.',
+      toastNotEnough:'Not enough coins: need {need}, you have {have}.',
+      toastBought:'Bought and equipped!', toastDone:'Done!', toastProfileSaved:'Profile saved.', toastVoted:'Vote counted!',
+      toastEmptyCoin:'Draw something on the coin first — you can\'t throw a blank one.',
+      toastBankReopening:'The bank will reopen in a few seconds — the winner is being announced.',
+      toastBankClosed:'The bank is closed right now — the draw is underway.',
+      toastAlreadyThrown:'{name}, you\'ve already thrown a coin this round. Wait for the next contest.',
+      langToggle:'RU',
+      tourStep0Title:'Welcome to "Coin Bank"', tourStep0Text:'This is a demo prototype. Here\'s a quick rundown of what you can do and a few nuances worth knowing.',
+      tourStep1Title:'The glass bank', tourStep1Text:'The bank at the center of the home page. Drag it sideways and tilt it up/down with your mouse or finger — the coins inside physically react to the tilt.',
+      tourStep2Title:'The draw', tourStep2Text:'Once the bank collects {threshold} coins (this is a test build with a small threshold — the final version will need more coins to start a draw), a countdown starts and the bank closes. The winner is picked at random and takes the whole pot — every coin participants spent to enter.',
+      tourStep3Title:'The "Waiting room" chat', tourStep3Text:'You can post a message while waiting. To the left of each name is the sender\'s avatar (a coin of theirs, a bought badge, or "?" if none is set).',
+      tourStep4Title:'The shop', tourStep4Text:'The button opens the cosmetics shop: avatars, profile backgrounds, a custom name, bank color and scene theme — all bought with virtual coins.',
+      tourStep5Title:'Coin balance', tourStep5Text:'Every account starts with {start} coins. Drawing a coin and throwing it into the bank to enter the contest costs {cost} coins. This is a test site: click the counter and your balance tops up by 1000 so you can try everything right away.',
+      tourStep6Title:'Account', tourStep6Text:'The round button top-right is login and profile: name, "about me", an avatar. One account — one coin thrown per round. If you\'ve won a draw, your account gets a special mark.',
+      tourStep7Title:'Workshop — draw a coin', tourStep7Text:'Pick a fill and brush color and draw something on the coin with your finger or mouse. A blank coin can\'t be thrown.',
+      tourStep8Title:'Throw into the bank', tourStep8Text:'Throwing costs {cost} coins and enters your coin into the current contest round.',
+      tourStep9Title:'Gallery & podium', tourStep9Text:'All past winners live here. Once the gallery has 4 coins, audience voting opens for favorite coins: the top 3 by votes take the podium. Every +4 new coins, voting refreshes, counting every coin in the gallery.',
+      tourStep10Title:'This is a demo prototype', tourStep10Text:'Your account, balance, chat and purchases are stored only in this browser — this is a demonstration of the mechanic, not a blockchain. In the future, pending the necessary licensing, the plan is to move to real stakes via a proprietary crypto-coin with a provably fair draw — and every coin becomes a canvas for an ad, a logo, or a joke. Click "?" bottom-right to replay this tour anytime.'
+    }
+  };
+  let lang = (localStorage.getItem('ct_lang') === 'ru') ? 'ru' : 'en';
+  function t(key, vars){
+    let s = (I18N[lang] && I18N[lang][key] != null) ? I18N[lang][key] : (I18N.ru[key] || key);
+    if(vars) Object.keys(vars).forEach(k => { s = s.split('{'+k+'}').join(vars[k]); });
+    return s;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // alert()/confirm() обычно заблокированы в песочнице, где открывается артефакт —
+  // поэтому все сообщения пользователю показываем этим тостом, а не alert()
+  const toastEl = document.getElementById('toast');
+  function showToast(msg, ms){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastEl._hideTimer);
+    toastEl._hideTimer = setTimeout(()=>toastEl.classList.remove('show'), ms || 2800);
+  }
+
+  let coins = store('ct_coins') || [];
+  let chat = store('ct_chat') || [{sys:true}];
+  // contest: null (копилка открыта и принимает монеты) |
+  // {endsAt, winner:null} (идёт отсчёт до розыгрыша) |
+  // {winner:{img,owner}, reopenAt} (победитель объявлен, копилка откроется заново в reopenAt)
+  let contest = store('ct_contest') || null;
+  // winners: массив прошедших конкурсов-победителей, от первого к последнему
+  let winners = store('ct_winners') || [];
+  // миграция со старой версии, где хранился только один lastWinner / contest.winner
+  const legacyWinner = store('ct_last_winner');
+  if(legacyWinner && !winners.length){ winners = [legacyWinner]; save('ct_winners', winners); }
+  if(contest && contest.winner && !winners.includes(contest.winner)){ winners.push(contest.winner); save('ct_winners', winners); }
+  // защита от «битых» записей, оставшихся от более ранней версии прототипа
+  if(contest && contest.winner && !contest.reopenAt){ contest = null; save('ct_contest', contest); }
+  if(contest && !contest.winner && !contest.endsAt){ contest = null; save('ct_contest', contest); }
+
+  // миграция со старой версии: монета/победитель хранились просто как строка dataURL,
+  // теперь это {img, owner} — чтобы знать, кто бросил монету (для ограничения «1 монета за раунд»)
+  coins = coins.map(c => typeof c === 'string' ? {img:c, owner:'Гость'} : c);
+  winners = winners.map(w => typeof w === 'string' ? {img:w, owner:'Гость'} : w);
+  if(contest && contest.winner && typeof contest.winner === 'string'){
+    contest.winner = {img:contest.winner, owner:'Гость'};
+  }
+  save('ct_coins', coins); save('ct_winners', winners); save('ct_contest', contest);
+
+  // ---- голосование за пьедестал: каждые 4 новых монеты в галерее открывается новый раунд
+  // голосования (с учётом ВСЕХ монет-победителей, не только последних 4), прошлые голоса сбрасываются ----
+  let voteState = store('ct_votes') || {round:0, ballots:{}};
+  function syncVoteRound(){
+    const newRound = Math.floor(winners.length/4);
+    if(newRound !== voteState.round){
+      voteState = {round:newRound, ballots:{}};
+      save('ct_votes', voteState);
+    }
+  }
+
+  // ---- «аккаунт»: никнейм, хранится только в этом браузере. Не защита от обхода
+  // (очистка localStorage / другой браузер / инкогнито её снимают), а демонстрация
+  // механики «один аккаунт — одна монета за раунд конкурса». ----
+  let currentUser = store('ct_user') || null;
+  // профили: {имя: {bio, avatar}} — «о себе» и выбранный аватар (одна из своих монет)
+  let profiles = store('ct_profiles') || {};
+  // история всех монет, когда-либо нарисованных и брошенных каждым именем (не сбрасывается раундами) —
+  // из неё пользователь выбирает аватар для профиля
+  let userCoinHistory = store('ct_user_coins') || {};
+  function getProfile(name){
+    const p = profiles[name] || {};
+    return {
+      bio: p.bio || '', avatar: p.avatar || null,
+      shopAvatar: p.shopAvatar || 'default', bgTheme: p.bgTheme || 'default',
+      nameStyle: p.nameStyle || 'default', bankSkin: p.bankSkin || 'default',
+      sceneTheme: p.sceneTheme || 'default', owned: p.owned || {}
+    };
+  }
+  function hasWon(name){ return winners.some(w => w.owner === name); }
+  function updateProfile(name, patch){
+    profiles[name] = Object.assign({}, profiles[name]||{}, patch);
+    save('ct_profiles', profiles);
+  }
+
+  // ---- виртуальные монеты аккаунта: у каждого игрока со старта 100, бросок монеты в конкурс стоит 50 ----
+  const START_BALANCE = 100;
+  const COIN_COST = 50;
+  let balances = store('ct_balances') || {};
+  function getBalance(name){
+    if(!(name in balances)){ balances[name] = START_BALANCE; save('ct_balances', balances); }
+    return balances[name];
+  }
+  function spendBalance(name, amount){
+    balances[name] = getBalance(name) - amount;
+    save('ct_balances', balances);
+  }
+  function updateBalanceFab(){
+    document.getElementById('balanceAmount').textContent = currentUser ? getBalance(currentUser) : START_BALANCE;
+  }
+  // тестовое пополнение: это демо-прототип без реальных денег, поэтому клик по счётчику
+  // просто добавляет монеты — удобно, чтобы сразу попробовать магазин и конкурс
+  const TEST_TOPUP = 1000;
+  document.getElementById('balanceFab').addEventListener('click', ()=>{
+    if(!currentUser){ showLogin(); return; }
+    balances[currentUser] = getBalance(currentUser) + TEST_TOPUP;
+    save('ct_balances', balances);
+    updateBalanceFab();
+    showToast(t('toastTopup',{n:TEST_TOPUP}));
+  });
+
+  // ---- применение перевода ко всем статичным надписям + переключатель языка ----
+  function applyI18n(){
+    document.documentElement.lang = lang;
+    document.title = t('siteTitle');
+    const byId = (id, prop, val) => { const el = document.getElementById(id); if(el) el[prop] = val; };
+    byId('siteTitleText','textContent', t('siteTitle'));
+    byId('navHome','textContent', t('navHome'));
+    byId('navWorkshop','textContent', t('navWorkshop'));
+    byId('navGallery','textContent', t('navGallery'));
+    byId('shopFab','title', t('shopTitleAttr'));
+    byId('balanceFab','title', t('balanceTitleAttr'));
+    byId('accountFab','title', t('accountTitleAttr'));
+    byId('langFab','textContent', lang.toUpperCase());
+    byId('langFab','title', t('langChooseTitle'));
+    document.querySelectorAll('.lang-option').forEach(el=>{
+      el.classList.toggle('active', el.dataset.lang === lang);
+    });
+    const loginCloseEl = document.getElementById('loginClose'); if(loginCloseEl) loginCloseEl.setAttribute('aria-label', t('closeAria'));
+    byId('loginTitleText','textContent', t('loginTitle'));
+    byId('loginSubText','textContent', t('loginSub'));
+    byId('loginInput','placeholder', t('loginNamePh'));
+    byId('loginSaveBtn','textContent', t('loginSave'));
+    byId('profileBioLabelText','textContent', t('profileBioLabel'));
+    byId('profileBio','placeholder', t('profileBioPh'));
+    byId('profileAvatarLabelText','textContent', t('profileAvatarLabel'));
+    byId('saveProfileBtn','textContent', t('profileSaveBtn'));
+    const shopCloseEl = document.getElementById('shopClose'); if(shopCloseEl) shopCloseEl.setAttribute('aria-label', t('closeAria'));
+    byId('shopTitleText','textContent', t('shopTitle'));
+    byId('shopIntroText','innerHTML', t('shopIntro'));
+    byId('helpFab','title', t('helpTitleAttr'));
+    const hcText = document.getElementById('helpCalloutText');
+    if(hcText) hcText.textContent = t('helpCalloutText');
+    byId('tourSkip','textContent', t('tourSkip'));
+    byId('tourBack','textContent', t('tourBack'));
+    byId('dragHintText','textContent', t('dragHint'));
+    byId('chatHeadText','textContent', t('chatHead'));
+    byId('chatInput','placeholder', t('chatPlaceholder'));
+    byId('chatSendBtn','textContent', t('chatSend'));
+    byId('chatNoteText','textContent', t('chatNote'));
+    byId('fillLabelText','textContent', t('fillLabel'));
+    byId('brushColorLabelText','textContent', t('brushColorLabel'));
+    byId('brushSizeLabelText','textContent', t('brushSizeLabel'));
+    byId('clearCoin','textContent', t('clearBtn'));
+    byId('throwCoin','textContent', t('throwBtn'));
+
+    // перерисовываем динамические блоки на новом языке
+    renderChat(); renderCount(); renderGallery(); updateAccountFab(); updateBalanceFab();
+    if(loginOverlay.style.display === 'flex') renderProfileSection();
+    if(shopOverlay.style.display === 'flex') renderShop();
+    if(tourCard.style.display === 'block'){ tourSteps = getTourSteps(); renderTourStep(); }
+  }
+  const langMenu = document.getElementById('langMenu');
+  document.getElementById('langFab').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    langMenu.style.display = (langMenu.style.display === 'flex') ? 'none' : 'flex';
+  });
+  langMenu.querySelectorAll('.lang-option').forEach(opt=>{
+    opt.addEventListener('click', ()=>{
+      lang = opt.dataset.lang;
+      localStorage.setItem('ct_lang', lang);
+      applyI18n();
+      langMenu.style.display = 'none';
+    });
+  });
+  document.addEventListener('click', (e)=>{
+    if(langMenu.style.display === 'flex' && !langMenu.contains(e.target) && e.target.id !== 'langFab'){
+      langMenu.style.display = 'none';
+    }
+  });
+
+  // ---- магазин косметики: тратим виртуальные монеты на внешний вид (только в этом браузере) ----
+  const SHOP_ITEMS = {
+    avatars: [
+      {id:'default', labelKey:'itemAvatarDefault', price:0, emoji:'👤'},
+      {id:'fox', labelKey:'itemFox', price:40, emoji:'🦊'},
+      {id:'tiger', labelKey:'itemTiger', price:40, emoji:'🐯'},
+      {id:'owl', labelKey:'itemOwl', price:40, emoji:'🦉'},
+      {id:'crown', labelKey:'itemCrown', price:70, emoji:'👑'},
+    ],
+    backgrounds: [
+      {id:'default', labelKey:'itemBgDefault', price:0, css:'transparent'},
+      {id:'emerald', labelKey:'itemEmerald', price:60, css:'linear-gradient(145deg,#063d2e,#0a6b4d)'},
+      {id:'sapphire', labelKey:'itemSapphire', price:60, css:'linear-gradient(145deg,#0b2347,#1a4f8f)'},
+      {id:'amber', labelKey:'itemAmber', price:60, css:'linear-gradient(145deg,#4a2a06,#a8650f)'},
+      {id:'rose', labelKey:'itemRose', price:60, css:'linear-gradient(145deg,#4a0f2e,#a8206a)'},
+    ],
+    nameStyles: [
+      {id:'default', labelKey:'itemNameDefault', price:0, preview:'color:#cda349;'},
+      {id:'emerald', labelKey:'itemNameEmerald', price:50, preview:'color:#3ddc97;'},
+      {id:'fire', labelKey:'itemNameFire', price:50, preview:'background:linear-gradient(90deg,#ff6b35,#ffd166);-webkit-background-clip:text;background-clip:text;color:transparent;'},
+      {id:'ice', labelKey:'itemNameIce', price:50, preview:'color:#8fd9ff;'},
+      {id:'rainbow', labelKey:'itemNameRainbow', price:90, rainbow:true},
+    ],
+    bankSkins: [
+      {id:'default', labelKey:'itemSkinDefault', price:0, color:0xffffff},
+      {id:'emerald', labelKey:'itemSkinEmerald', price:100, color:0x3ddc97},
+      {id:'sapphire', labelKey:'itemSkinSapphire', price:100, color:0x4aa3ff},
+      {id:'amber', labelKey:'itemSkinAmber', price:100, color:0xffb84a},
+      {id:'rose', labelKey:'itemSkinRose', price:100, color:0xff7fb0},
+    ],
+    sceneThemes: [
+      {id:'default', labelKey:'itemSceneDefault', price:0, vars:{dark:'#2a0810', mid:'#4a0f1c', light:'#6b1a2b'}},
+      {id:'emerald', labelKey:'itemSceneEmerald', price:120, vars:{dark:'#06211a', mid:'#0a3d2e', light:'#115c44'}},
+      {id:'midnight', labelKey:'itemSceneMidnight', price:120, vars:{dark:'#050a1c', mid:'#0b1a3d', light:'#17316b'}},
+      {id:'royal', labelKey:'itemSceneRoyal', price:120, vars:{dark:'#1c0a2e', mid:'#3a1259', light:'#5c1f8a'}},
+    ]
+  };
+  const SHOP_FIELD = {avatars:'shopAvatar', backgrounds:'bgTheme', nameStyles:'nameStyle', bankSkins:'bankSkin', sceneThemes:'sceneTheme'};
+  const SHOP_CAT_KEY = {avatars:'catAvatars', backgrounds:'catBackgrounds', nameStyles:'catNameStyles', bankSkins:'catBankSkins', sceneThemes:'catSceneThemes'};
+  let shopCategory = 'avatars';
+
+  function isOwned(profile, cat, id){ return id==='default' || (profile.owned[cat]||[]).includes(id); }
+
+  function styledNameHtml(name){
+    const style = getProfile(name).nameStyle;
+    const item = SHOP_ITEMS.nameStyles.find(s=>s.id===style) || SHOP_ITEMS.nameStyles[0];
+    if(item.rainbow) return `<span class="name-rainbow">${escapeHtml(name)}</span>`;
+    return `<span style="${item.preview||''}">${escapeHtml(name)}</span>`;
+  }
+  function nameSpanHtml(name){ return `<span class="name">${styledNameHtml(name)}:</span>`; }
+  function avatarHtml(name, cls){
+    const profile = getProfile(name);
+    if(profile.shopAvatar && profile.shopAvatar !== 'default'){
+      const item = SHOP_ITEMS.avatars.find(a=>a.id===profile.shopAvatar);
+      if(item) return `<div class="${cls} shop-avatar-emoji">${item.emoji}</div>`;
+    }
+    if(profile.avatar) return `<img class="${cls}" src="${profile.avatar}">`;
+    return `<div class="${cls} chat-avatar-empty">?</div>`;
+  }
+  function applySceneTheme(id){
+    const item = SHOP_ITEMS.sceneThemes.find(t=>t.id===id) || SHOP_ITEMS.sceneThemes[0];
+    document.documentElement.style.setProperty('--curtain-dark', item.vars.dark);
+    document.documentElement.style.setProperty('--curtain', item.vars.mid);
+    document.documentElement.style.setProperty('--curtain-light', item.vars.light);
+  }
+  function applyBankSkin(id){
+    const item = SHOP_ITEMS.bankSkins.find(s=>s.id===id) || SHOP_ITEMS.bankSkins[0];
+    if(window.bank3D) window.bank3D.setSkin(item.color);
+  }
+  function applyUserCosmetics(){
+    const profile = currentUser ? getProfile(currentUser) : null;
+    applySceneTheme(profile ? profile.sceneTheme : 'default');
+    applyBankSkin(profile ? profile.bankSkin : 'default');
+  }
+
+  function renderShop(){
+    const tabsEl = document.getElementById('shopTabs');
+    const gridEl = document.getElementById('shopGrid');
+    tabsEl.innerHTML = Object.keys(SHOP_ITEMS).map(cat =>
+      `<button type="button" class="shop-tab${cat===shopCategory?' active':''}" data-cat="${cat}">${t(SHOP_CAT_KEY[cat])}</button>`
+    ).join('');
+    tabsEl.querySelectorAll('.shop-tab').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ shopCategory = btn.dataset.cat; renderShop(); });
+    });
+    if(!currentUser){
+      gridEl.innerHTML = `<div class="avatar-empty">${t('shopLoginFirst')}</div>`;
+      return;
+    }
+    const profile = getProfile(currentUser);
+    const items = SHOP_ITEMS[shopCategory];
+    const equippedId = profile[SHOP_FIELD[shopCategory]];
+    gridEl.innerHTML = items.map(item=>{
+      const owned = isOwned(profile, shopCategory, item.id);
+      const equipped = equippedId === item.id;
+      let swatchInner = '', swatchStyle = '';
+      if(shopCategory==='avatars') swatchInner = item.emoji;
+      else if(shopCategory==='backgrounds') swatchStyle = `background:${item.css};`;
+      else if(shopCategory==='nameStyles') swatchInner = item.rainbow ? `<span class="name-rainbow" style="font-size:13px;">Аа</span>` : `<span style="${item.preview}">Аа</span>`;
+      else if(shopCategory==='bankSkins') swatchStyle = `background:#${item.color.toString(16).padStart(6,'0')}; opacity:.55;`;
+      else if(shopCategory==='sceneThemes') swatchStyle = `background:linear-gradient(145deg,${item.vars.light},${item.vars.dark});`;
+      const btnHtml = equipped
+        ? `<button type="button" class="equipped-btn" disabled>${t('shopEquipped')}</button>`
+        : owned
+          ? `<button type="button" class="equip" data-cat="${shopCategory}" data-id="${item.id}" data-action="equip">${t('shopEquip')}</button>`
+          : `<button type="button" class="buy" data-cat="${shopCategory}" data-id="${item.id}" data-action="buy">${t('shopBuy')}</button>`;
+      return `<div class="shop-item${equipped?' equipped':''}">
+        <div class="shop-swatch" style="${swatchStyle}">${swatchInner}</div>
+        <div class="shop-item-label">${t(item.labelKey)}</div>
+        <div class="shop-item-price">${item.price>0 ? `<span class="coin-ico"></span> ${item.price}` : t('shopFree')}</div>
+        ${btnHtml}
+      </div>`;
+    }).join('');
+    gridEl.querySelectorAll('button[data-action]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const cat = btn.dataset.cat, id = btn.dataset.id, action = btn.dataset.action;
+        const item = SHOP_ITEMS[cat].find(i=>i.id===id);
+        const prof = getProfile(currentUser);
+        if(action==='buy'){
+          if(getBalance(currentUser) < item.price){
+            showToast(t('toastNotEnough',{need:item.price, have:getBalance(currentUser)}));
+            return;
+          }
+          spendBalance(currentUser, item.price);
+          updateBalanceFab();
+          const owned = Object.assign({}, prof.owned);
+          owned[cat] = (owned[cat]||[]).concat(id);
+          updateProfile(currentUser, { owned, [SHOP_FIELD[cat]]: id });
+        } else {
+          updateProfile(currentUser, { [SHOP_FIELD[cat]]: id });
+        }
+        if(cat==='sceneThemes') applySceneTheme(id);
+        if(cat==='bankSkins') applyBankSkin(id);
+        updateAccountFab();
+        renderChat();
+        renderGallery();
+        renderCount();
+        renderShop();
+        showToast(action==='buy' ? t('toastBought') : t('toastDone'));
+      });
+    });
+  }
+  const shopOverlay = document.getElementById('shopOverlay');
+  document.getElementById('shopFab').addEventListener('click', ()=>{
+    shopOverlay.style.display = 'flex';
+    renderShop();
+  });
+  document.getElementById('shopClose').addEventListener('click', ()=>{ shopOverlay.style.display = 'none'; });
+  shopOverlay.addEventListener('click', e=>{ if(e.target === shopOverlay) shopOverlay.style.display = 'none'; });
+
+  const loginOverlay = document.getElementById('loginOverlay');
+  const loginClose = document.getElementById('loginClose');
+  let selectedAvatar = null;
+
+  function renderProfileSection(){
+    const section = document.getElementById('profileSection');
+    if(!currentUser){ section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    const profile = getProfile(currentUser);
+    selectedAvatar = profile.avatar || null;
+    document.getElementById('profileBio').value = profile.bio || '';
+
+    const card = document.getElementById('profileCard');
+    const bgItem = SHOP_ITEMS.backgrounds.find(b=>b.id===profile.bgTheme) || SHOP_ITEMS.backgrounds[0];
+    if(bgItem.id === 'default'){ card.style.background = ''; card.classList.remove('themed'); }
+    else { card.style.background = bgItem.css; card.classList.add('themed'); }
+
+    document.getElementById('profileBadgeRow').innerHTML = hasWon(currentUser)
+      ? `<span class="win-badge">${t('winBadge')}</span>` : '';
+
+    const grid = document.getElementById('avatarGrid');
+    const history = userCoinHistory[currentUser] || [];
+    if(!history.length){
+      grid.innerHTML = `<div class="avatar-empty">${t('avatarEmptyHistory')}</div>`;
+    } else {
+      grid.innerHTML = '';
+      history.slice().reverse().forEach(src=>{
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = t('myCoinAlt');
+        img.className = 'avatar-option' + (src === selectedAvatar ? ' selected' : '');
+        img.addEventListener('click', ()=>{
+          selectedAvatar = src;
+          grid.querySelectorAll('.avatar-option').forEach(el=>el.classList.remove('selected'));
+          img.classList.add('selected');
+        });
+        grid.appendChild(img);
+      });
+    }
+  }
+
+  document.getElementById('saveProfileBtn').addEventListener('click', ()=>{
+    if(!currentUser) return;
+    const bio = document.getElementById('profileBio').value.trim().slice(0,160);
+    updateProfile(currentUser, { bio, avatar: selectedAvatar });
+    updateAccountFab();
+    showToast(t('toastProfileSaved'));
+  });
+
+  function showLogin(prefill){
+    loginOverlay.style.display = 'flex';
+    loginClose.style.display = currentUser ? 'block' : 'none';
+    const input = document.getElementById('loginInput');
+    input.value = prefill || '';
+    renderProfileSection();
+    setTimeout(()=>input.focus(), 50);
+  }
+  function hideLogin(){ loginOverlay.style.display = 'none'; }
+  function updateAccountFab(){
+    const avatarImg = document.getElementById('accountFabAvatar');
+    const glyph = document.getElementById('accountFabGlyph');
+    const trophy = document.getElementById('accountFabTrophy');
+    const profile = currentUser ? getProfile(currentUser) : null;
+    const shopAvatarItem = profile && profile.shopAvatar !== 'default'
+      ? SHOP_ITEMS.avatars.find(a=>a.id===profile.shopAvatar) : null;
+    if(shopAvatarItem){
+      avatarImg.style.display = 'none'; glyph.style.display = 'block';
+      glyph.textContent = shopAvatarItem.emoji;
+    } else if(profile && profile.avatar){
+      avatarImg.src = profile.avatar; avatarImg.style.display = 'block'; glyph.style.display = 'none';
+    } else {
+      avatarImg.style.display = 'none'; glyph.style.display = 'block';
+      glyph.textContent = currentUser ? currentUser.trim().charAt(0).toUpperCase() : '👤';
+    }
+    trophy.style.display = (currentUser && hasWon(currentUser)) ? 'flex' : 'none';
+  }
+  document.getElementById('accountFab').addEventListener('click', ()=>showLogin(currentUser || ''));
+  loginClose.addEventListener('click', ()=>{ if(currentUser) hideLogin(); });
+  loginOverlay.addEventListener('click', e=>{ if(e.target === loginOverlay && currentUser) hideLogin(); });
+  document.getElementById('loginForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const val = document.getElementById('loginInput').value.trim().slice(0,24);
+    if(!val) return;
+    currentUser = val; save('ct_user', currentUser);
+    getBalance(currentUser);
+    hideLogin(); updateAccountFab(); updateBalanceFab(); applyUserCosmetics();
+    renderChat(); renderGallery(); renderCount();
+    // путеводитель для совсем новых пользователей показываем только после того,
+    // как окно создания аккаунта закрылось — иначе оба окна всплывают одновременно
+    if(!localStorage.getItem('ct_tour_seen')){ setTimeout(startTour, 400); }
+  });
+  if(!currentUser){ showLogin(); } else { hideLogin(); }
+  updateAccountFab(); updateBalanceFab(); applyUserCosmetics();
+
+  // tabs — кинематографичный переход: камера улетает вперёд, шторы сходятся/расходятся
+  const curtainOverlay = document.getElementById('curtainOverlay');
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let tabSwitching = false;
+
+  function switchTab(btn){
+    const targetId = btn.dataset.tab;
+    const oldBtn = document.querySelector('.tab-btn.active');
+    if(tabSwitching || (oldBtn && oldBtn.dataset.tab === targetId)) return;
+
+    const oldView = document.querySelector('.view.active');
+    const newView = document.getElementById(targetId);
+
+    document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+    btn.classList.add('active');
+
+    if(prefersReducedMotion || !oldView){
+      if(oldView) oldView.classList.remove('active');
+      newView.classList.add('active');
+      if(targetId==='gallery') renderGallery();
+      return;
+    }
+
+    tabSwitching = true;
+    curtainOverlay.classList.add('active','closed');
+    oldView.classList.add('fly-forward');
+
+    setTimeout(()=>{
+      oldView.classList.remove('active','fly-forward');
+      newView.classList.add('active','approach-start');
+      if(targetId==='gallery') renderGallery();
+
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>{
+          curtainOverlay.classList.remove('closed');
+          curtainOverlay.classList.add('opening');
+          newView.classList.remove('approach-start');
+          newView.classList.add('approach-end');
+        });
+      });
+
+      setTimeout(()=>{
+        newView.classList.remove('approach-end');
+        curtainOverlay.classList.remove('active','opening');
+        tabSwitching = false;
+      }, 520);
+    }, 300);
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click', ()=>switchTab(b)));
+
+  // мгновенное переключение без анимации — для автоматического перехода на «Главную» при броске монеты
+  function activateTabInstant(targetId){
+    document.querySelectorAll('.tab-btn').forEach(x=>x.classList.toggle('active', x.dataset.tab===targetId));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active','fly-forward','approach-start','approach-end'));
+    document.getElementById(targetId).classList.add('active');
+    if(targetId==='gallery') renderGallery();
+  }
+
+  // chat
+  function renderChat(){
+    const log = document.getElementById('chatLog');
+    log.innerHTML = chat.map(m=>{
+      const name = m.sys ? t('siteTitle') : m.name;
+      const text = m.sys ? t('welcomeMsg') : m.text;
+      return `<div class="msg">${avatarHtml(name,'chat-avatar')}<div class="msg-text">${nameSpanHtml(name)}${escapeHtml(text)}</div></div>`;
+    }).join('');
+    log.scrollTop = log.scrollHeight;
+  }
+  document.getElementById('chatForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    if(!currentUser){ showLogin(); return; }
+    const input = document.getElementById('chatInput');
+    if(!input.value.trim()) return;
+    chat.push({name: currentUser, text: input.value.trim()});
+    save('ct_chat', chat); input.value=''; renderChat();
+  });
+
+  // coin count / contest
+  function renderCount(){
+    document.getElementById('coinCount').textContent = t('coinCount',{n:coins.length});
+    if(window.bank3D) window.bank3D.setCoinCount(coins.length);
+    const banner = document.getElementById('contestBanner');
+    if(contest && contest.winner){
+      const left = Math.max(0, (contest.reopenAt||0) - Date.now());
+      if(!contest.reopenAt || !isFinite(left) || left<=0){
+        contest = null; save('ct_contest', contest);
+        if(window.bank3D) window.bank3D.showBank();
+        document.getElementById('winnerName').style.display='none';
+        renderCount(); return;
+      }
+      banner.style.display='block';
+      banner.textContent = t('bannerWinner',{s:Math.ceil(left/1000)});
+      const nameEl = document.getElementById('winnerName');
+      nameEl.innerHTML = t('winnerNameAuthor',{name:styledNameHtml(contest.winner.owner||t('guest'))})
+        + (contest.winner.pot ? `${t('winnerNamePot')}<span class="coin-ico"></span> ${contest.winner.pot}` : '');
+      nameEl.style.display='block';
+    } else if(contest && !contest.winner){
+      const left = Math.max(0, (contest.endsAt||0) - Date.now());
+      if(!contest.endsAt || !isFinite(left) || left<=0){ finishContest(); return; }
+      banner.style.display='block';
+      banner.textContent = t('bannerClosed',{s:Math.ceil(left/1000)});
+    } else if(coins.length>=THRESHOLD){
+      startContest();
+    } else {
+      banner.style.display='none';
+    }
+  }
+  function startContest(){
+    contest = {endsAt: Date.now()+CONTEST_MS, winner:null};
+    save('ct_contest', contest);
+  }
+  function finishContest(){
+    const idx = Math.floor(Math.random()*coins.length);
+    const picked = coins[idx];
+    const pot = coins.length * COIN_COST;
+    const winner = {img: picked.img, owner: picked.owner, pot};
+    contest = {winner, reopenAt: Date.now()+REOPEN_MS};
+    save('ct_contest', contest);
+    winners.push(winner); save('ct_winners', winners);
+    coins = []; save('ct_coins', coins);
+    balances[winner.owner] = getBalance(winner.owner) + pot;
+    save('ct_balances', balances);
+    if(window.bank3D) window.bank3D.showWinner(winner.img);
+    updateAccountFab();
+    updateBalanceFab();
+    renderCount();
+    renderGallery();
+    launchConfetti();
+  }
+  setInterval(renderCount, 1000);
+
+  // confetti
+  const confettiCanvas = document.getElementById('confettiCanvas');
+  const cctx = confettiCanvas.getContext('2d');
+  let confettiParticles = [];
+  let confettiRAF = null;
+  const CONFETTI_COLORS = ['#cda349','#e8d6a8','#f3e6c9','#ff6b6b','#5ec8f2','#7ee081','#ff9fd6','#ffd166'];
+  function launchConfetti(){
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+    confettiCanvas.style.display = 'block';
+    const count = 140;
+    confettiParticles = [];
+    for(let i=0;i<count;i++){
+      confettiParticles.push({
+        x: Math.random()*confettiCanvas.width,
+        y: confettiCanvas.height + Math.random()*40,
+        vx: (Math.random()-0.5)*4,
+        vy: -(8 + Math.random()*9),
+        size: 5 + Math.random()*6,
+        color: CONFETTI_COLORS[Math.floor(Math.random()*CONFETTI_COLORS.length)],
+        rot: Math.random()*Math.PI*2,
+        vrot: (Math.random()-0.5)*0.3,
+        life: 0,
+        maxLife: 110 + Math.random()*50
+      });
+    }
+    if(confettiRAF) cancelAnimationFrame(confettiRAF);
+    confettiTick();
+  }
+  function confettiTick(){
+    cctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+    let alive = false;
+    for(const p of confettiParticles){
+      p.life++;
+      if(p.life > p.maxLife) continue;
+      alive = true;
+      p.vy += 0.22; // gravity
+      p.x += p.vx; p.y += p.vy; p.rot += p.vrot;
+      const fade = p.life > p.maxLife*0.7 ? 1 - (p.life - p.maxLife*0.7)/(p.maxLife*0.3) : 1;
+      cctx.save();
+      cctx.globalAlpha = Math.max(0, fade);
+      cctx.translate(p.x, p.y); cctx.rotate(p.rot);
+      cctx.fillStyle = p.color;
+      cctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
+      cctx.restore();
+    }
+    if(alive){
+      confettiRAF = requestAnimationFrame(confettiTick);
+    } else {
+      confettiCanvas.style.display = 'none';
+      confettiRAF = null;
+    }
+  }
+
+  function renderPodiumSection(){
+    const counts = {};
+    Object.values(voteState.ballots).forEach(idx=>{ counts[idx] = (counts[idx]||0)+1; });
+    const ranked = winners.map((w,idx)=>({w, idx})).sort((a,b)=> (counts[b.idx]||0)-(counts[a.idx]||0));
+    const top3 = ranked.slice(0,3);
+    const medal = ['🥇','🥈','🥉'];
+    const placeClass = ['first','second','third'];
+    // визуальный порядок на пьедестале: 2-е, 1-е, 3-е место
+    const order = [1,0,2].filter(i => top3[i]);
+    const podiumCards = order.map(i=>{
+      const {w, idx} = top3[i];
+      return `<div class="podium-slot ${placeClass[i]}">
+        <div class="podium-medal">${medal[i]}</div>
+        <img class="podium-coin" src="${w.img}" alt="">
+        <div class="podium-name">${styledNameHtml(w.owner||t('guest'))}</div>
+        <div class="podium-votes">${counts[idx]||0} ${t('votesSuffix')}</div>
+      </div>`;
+    }).join('');
+
+    const myVote = currentUser ? voteState.ballots[currentUser] : undefined;
+    const voteItems = winners.map((w,idx)=>{
+      const voted = myVote === idx;
+      return `<div class="vote-item${voted?' voted':''}">
+        <img class="vote-coin" src="${w.img}" alt="">
+        <div class="vote-owner">${escapeHtml(w.owner||t('guest'))}</div>
+        <div class="vote-count">${counts[idx]||0} ${t('votesSuffix')}</div>
+        <button type="button" class="vote-btn" data-idx="${idx}">${voted?t('votedBtn'):t('voteBtn')}</button>
+      </div>`;
+    }).join('');
+
+    const remaining = (voteState.round+1)*4 - winners.length;
+    return `
+      <div class="podium-section">
+        <div class="podium-title">${t('podiumTitle')}</div>
+        <div class="podium-row">${podiumCards}</div>
+        <div class="vote-sub">${t('voteSub',{n:winners.length, r:remaining, unit:(remaining===1?t('voteUnitOne'):t('voteUnitFew'))})}</div>
+        <div class="vote-grid">${voteItems}</div>
+      </div>`;
+  }
+
+  function renderGallery(){
+    const wrap = document.getElementById('galleryWrap');
+    syncVoteRound();
+    if(winners.length){
+      const podiumHtml = winners.length >= 4 ? renderPodiumSection() : '';
+      const cards = winners.slice().reverse().map((w,i)=>{
+        const isLatest = i===0;
+        return `<div class="winner-card${isLatest?' latest':''}">
+          <img class="winner-coin" src="${w.img}" alt="${t('winnerCoinAlt')}">
+          <div class="winner-label">${isLatest ? t('winnerLatest') : t('winnerRound',{n:winners.length-i})}</div>
+          <div class="winner-sub">${(isLatest ? t('winnerAuthorPrefix') : t('winnerPastPrefix'))}${styledNameHtml(w.owner||t('guest'))}</div>
+          <div class="winner-sub">${w.pot ? `${t('winnerTook')}<span class="coin-ico"></span> ${w.pot}` : ''}</div>
+        </div>`;
+      }).join('');
+      wrap.innerHTML = podiumHtml + `<div class="winners-grid">${cards}</div>`;
+      wrap.querySelectorAll('.vote-btn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          if(!currentUser){ showLogin(); return; }
+          voteState.ballots[currentUser] = parseInt(btn.dataset.idx, 10);
+          save('ct_votes', voteState);
+          renderGallery();
+          showToast(t('toastVoted'));
+        });
+      });
+    } else {
+      wrap.innerHTML = `<div class="empty">${t('galleryEmpty',{n:THRESHOLD})}</div>`;
+    }
+  }
+
+  // drawing
+  const canvas = document.getElementById('coinCanvas');
+  const ctx = canvas.getContext('2d');
+  const coinBg = document.getElementById('coinBg');
+  const coinFillColor = document.getElementById('coinFillColor');
+  // заливка — отдельный слой под canvas, поэтому смену цвета не стирает рисунок
+  function updateCoinBg(){ coinBg.style.background = coinFillColor.value; }
+  coinFillColor.addEventListener('input', updateCoinBg);
+  updateCoinBg();
+  function resetCoinCanvas(){
+    ctx.clearRect(0,0,220,220);
+  }
+  resetCoinCanvas();
+  // собрать итоговую картинку монеты (заливка + рамка + рисунок) для копилки/галереи
+  function getCoinDataUrl(){
+    const off = document.createElement('canvas');
+    off.width = 220; off.height = 220;
+    const octx = off.getContext('2d');
+    octx.save();
+    octx.beginPath(); octx.arc(110,110,108,0,Math.PI*2); octx.clip();
+    octx.fillStyle = coinFillColor.value; octx.fillRect(0,0,220,220);
+    octx.restore();
+    octx.beginPath(); octx.arc(110,110,108,0,Math.PI*2); octx.strokeStyle='#8a6d2f'; octx.lineWidth=4; octx.stroke();
+    octx.drawImage(canvas, 0, 0);
+    return off.toDataURL('image/png');
+  }
+  let drawing=false, last=null, hasDrawing=false;
+  function pos(e){
+    const r = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return {x:(p.clientX-r.left)*(220/r.width), y:(p.clientY-r.top)*(220/r.height)};
+  }
+  function start(e){ drawing=true; last=pos(e); e.preventDefault(); }
+  function move(e){
+    if(!drawing) return;
+    const p = pos(e);
+    ctx.strokeStyle = document.getElementById('brushColor').value;
+    ctx.lineWidth = document.getElementById('brushSize').value;
+    ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke();
+    last=p; hasDrawing=true; e.preventDefault();
+  }
+  function end(){ drawing=false; }
+  canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start); canvas.addEventListener('touchmove', move); canvas.addEventListener('touchend', end);
+  document.getElementById('clearCoin').addEventListener('click', ()=>{ resetCoinCanvas(); hasDrawing=false; });
+
+  // throw animation
+  document.getElementById('throwCoin').addEventListener('click', ()=>{
+    if(!currentUser){ showLogin(); return; }
+    if(!hasDrawing){ showToast(t('toastEmptyCoin')); return; }
+    if(contest){
+      if(contest.winner){ showToast(t('toastBankReopening')); return; }
+      showToast(t('toastBankClosed')); return;
+    }
+    if(coins.some(c => c.owner === currentUser)){
+      showToast(t('toastAlreadyThrown',{name:currentUser}));
+      return;
+    }
+    if(getBalance(currentUser) < COIN_COST){
+      showToast(t('toastNotEnough',{need:COIN_COST, have:getBalance(currentUser)}));
+      return;
+    }
+    const dataUrl = getCoinDataUrl();
+    const fly = document.getElementById('flyingCoin');
+    const startRect = canvas.getBoundingClientRect();
+    fly.src = dataUrl;
+    fly.style.transition = 'none';
+    fly.style.left = (startRect.left + startRect.width/2 - 35) + 'px';
+    fly.style.top = (startRect.top + startRect.height/2 - 35) + 'px';
+    fly.style.display = 'block';
+    fly.style.opacity = '1';
+    fly.style.transform = 'scale(1) rotate(0deg)';
+
+    activateTabInstant('home');
+    requestAnimationFrame(()=>{
+      const bank = document.getElementById('bankCanvas').getBoundingClientRect();
+      requestAnimationFrame(()=>{
+        fly.style.transition = 'left 900ms cubic-bezier(.4,.6,.2,1), top 900ms cubic-bezier(.6,0,.8,.4), transform 900ms, opacity 900ms';
+        fly.style.left = (bank.left + bank.width/2 - 20) + 'px';
+        fly.style.top = (bank.top + bank.height*0.55 - 20) + 'px';
+        fly.style.transform = 'scale(0.4) rotate(540deg)';
+        fly.style.opacity = '0.2';
+      });
+    });
+    setTimeout(()=>{
+      fly.style.display='none';
+      coins.push({img:dataUrl, owner:currentUser}); save('ct_coins', coins);
+      if(!userCoinHistory[currentUser]) userCoinHistory[currentUser] = [];
+      userCoinHistory[currentUser].push(dataUrl);
+      if(userCoinHistory[currentUser].length > 30) userCoinHistory[currentUser].shift();
+      save('ct_user_coins', userCoinHistory);
+      spendBalance(currentUser, COIN_COST);
+      updateBalanceFab();
+      resetCoinCanvas(); hasDrawing=false;
+      renderCount();
+      if(window.bank3D) window.bank3D.bump();
+    }, 950);
+  });
+
+  // ---- путеводитель по сайту: показывается автоматически при первом заходе,
+  // плюс кнопка «?» снизу справа, чтобы открыть его снова в любой момент ----
+  function getTourSteps(){
+    return [
+      {tab:'home', sel:null, title:t('tourStep0Title'), text:t('tourStep0Text')},
+      {tab:'home', sel:'#bankCanvas', title:t('tourStep1Title'), text:t('tourStep1Text')},
+      {tab:'workshop', sel:'.coin-wrap', title:t('tourStep7Title'), text:t('tourStep7Text')},
+      {tab:'workshop', sel:'#throwCoin', title:t('tourStep8Title'), text:t('tourStep8Text',{cost:COIN_COST})},
+      {tab:'home', sel:'#coinCount', title:t('tourStep2Title'), text:t('tourStep2Text',{threshold:THRESHOLD})},
+      {tab:'home', sel:'#chatLog', title:t('tourStep3Title'), text:t('tourStep3Text')},
+      {tab:'home', sel:'#shopFab', title:t('tourStep4Title'), text:t('tourStep4Text')},
+      {tab:'home', sel:'#balanceFab', title:t('tourStep5Title'), text:t('tourStep5Text',{start:START_BALANCE, cost:COIN_COST})},
+      {tab:'home', sel:'#accountFab', title:t('tourStep6Title'), text:t('tourStep6Text')},
+      {tab:'gallery', sel:'#galleryWrap', title:t('tourStep9Title'), text:t('tourStep9Text')},
+      {tab:'home', sel:null, title:t('tourStep10Title'), text:t('tourStep10Text')}
+    ];
+  }
+
+  let tourSteps = [], tourIdx = 0;
+  const tourDim = document.getElementById('tourDim');
+  const tourHighlight = document.getElementById('tourHighlight');
+  const tourCard = document.getElementById('tourCard');
+
+  function positionTour(step){
+    const target = step.sel ? document.querySelector(step.sel) : null;
+    if(target){
+      // подсветка сама создаёт затемнение вокруг себя (через box-shadow), поэтому
+      // сплошной #tourDim под ней на этом шаге отключаем — иначе он просвечивал
+      // поверх самой выделенной области и делал её тёмной
+      tourDim.style.background = 'transparent';
+      const r = target.getBoundingClientRect();
+      const pad = 8;
+      tourHighlight.style.display = 'block';
+      tourHighlight.style.top = (r.top - pad) + 'px';
+      tourHighlight.style.left = (r.left - pad) + 'px';
+      tourHighlight.style.width = (r.width + pad*2) + 'px';
+      tourHighlight.style.height = (r.height + pad*2) + 'px';
+
+      const cardH = tourCard.offsetHeight || 180;
+      const spaceBelow = window.innerHeight - r.bottom;
+      let top = (spaceBelow > cardH + 24) ? r.bottom + 14 : r.top - cardH - 14;
+      top = Math.max(10, Math.min(top, window.innerHeight - cardH - 10));
+      let left = r.left + r.width/2 - tourCard.offsetWidth/2;
+      left = Math.max(10, Math.min(left, window.innerWidth - tourCard.offsetWidth - 10));
+      tourCard.style.top = top + 'px';
+      tourCard.style.left = left + 'px';
+    } else {
+      tourDim.style.background = 'rgba(10,3,5,.72)';
+      tourHighlight.style.display = 'none';
+      tourCard.style.top = '50%';
+      tourCard.style.left = '50%';
+      tourCard.style.transform = 'translate(-50%,-50%)';
+    }
+    if(target){ tourCard.style.transform = 'none'; }
+  }
+
+  function renderTourStep(){
+    const step = tourSteps[tourIdx];
+    if(!step) return;
+    if(document.querySelector('.tab-btn.active').dataset.tab !== step.tab){
+      activateTabInstant(step.tab);
+    }
+    document.getElementById('tourTitle').textContent = step.title;
+    document.getElementById('tourText').textContent = step.text;
+    document.getElementById('tourDots').innerHTML = tourSteps.map((_,i)=>
+      `<div class="tour-dot${i===tourIdx?' active':''}"></div>`).join('');
+    document.getElementById('tourBack').style.visibility = tourIdx===0 ? 'hidden' : 'visible';
+    document.getElementById('tourNext').textContent = tourIdx===tourSteps.length-1 ? t('tourDone') : t('tourNext');
+    requestAnimationFrame(()=>positionTour(step));
+  }
+  function startTour(){
+    tourSteps = getTourSteps();
+    tourIdx = 0;
+    tourDim.style.display = 'block';
+    tourCard.style.display = 'block';
+    renderTourStep();
+  }
+  function endTour(){
+    tourDim.style.display = 'none';
+    tourHighlight.style.display = 'none';
+    tourCard.style.display = 'none';
+    localStorage.setItem('ct_tour_seen', '1');
+  }
+  document.getElementById('tourNext').addEventListener('click', ()=>{
+    if(tourIdx >= tourSteps.length-1){ endTour(); return; }
+    tourIdx++; renderTourStep();
+  });
+  document.getElementById('tourBack').addEventListener('click', ()=>{
+    if(tourIdx > 0){ tourIdx--; renderTourStep(); }
+  });
+  document.getElementById('tourSkip').addEventListener('click', endTour);
+  const helpFabEl = document.getElementById('helpFab');
+  const helpCalloutEl = document.getElementById('helpCallout');
+  const helpCalloutTextEl = document.getElementById('helpCalloutText');
+  function dismissHelpCallout(){
+    helpFabEl.classList.remove('pulse');
+    helpCalloutEl.classList.remove('show');
+  }
+  document.getElementById('helpCalloutClose').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    dismissHelpCallout();
+  });
+  helpFabEl.addEventListener('click', ()=>{ dismissHelpCallout(); startTour(); });
+  window.addEventListener('resize', ()=>{ if(tourCard.style.display==='block') positionTour(tourSteps[tourIdx]); });
+
+  if(!localStorage.getItem('ct_tour_seen')){
+    // если окно создания аккаунта уже открыто (новый пользователь) — путеводитель
+    // запустится сам после того, как аккаунт будет создан (см. сабмит loginForm),
+    // чтобы окна не всплывали одновременно друг на друге
+    if(currentUser){ setTimeout(startTour, 500); }
+  } else {
+    // пользователь уже видел путеводитель — всё равно привлекаем внимание к кнопке "?",
+    // и держим пульсацию и подсказку, пока пользователь сам их не закроет (крестиком или кликом по кнопке)
+    helpCalloutTextEl.textContent = t('helpCalloutText');
+    setTimeout(()=>{
+      helpFabEl.classList.add('pulse');
+      helpCalloutEl.classList.add('show');
+    }, 700);
+  }
+
+  applyI18n();
+})();
+</script>
+
+<!-- ===== 3D-копилка (Three.js) ===== -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script>
+(function(){
+  const canvas = document.getElementById('bankCanvas');
+  const fallback = document.getElementById('bankFallback');
+  if(!window.THREE || !canvas){ if(fallback) fallback.style.display='block'; return; }
+
+  let renderer, scene, camera, pigGroup, coinGroup;
+  try{
+    renderer = new THREE.WebGLRenderer({canvas, alpha:true, antialias:true});
+  }catch(e){ if(fallback) fallback.style.display='block'; return; }
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  camera.position.set(0, 0.9, 7.4);
+  camera.lookAt(0,0,0);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+  const key = new THREE.DirectionalLight(0xfff8ec, 1.7); key.position.set(3,5,4); scene.add(key);
+  const rim = new THREE.DirectionalLight(0xcda349, 0.7); rim.position.set(-4,1.5,-3); scene.add(rim);
+  const fill = new THREE.PointLight(0xffffff, 0.6); fill.position.set(0,-2,3); scene.add(fill);
+
+  pigGroup = new THREE.Group();
+  scene.add(pigGroup);
+
+  // прозрачный пластик + тонкие линии шва, как у настоящей литой копилки.
+  // Важно: материал НЕ реагирующий на свет (MeshBasicMaterial) — иначе сторона детали,
+  // отвёрнутая от источников света, рендерится тёмной/чёрной независимо от прозрачности
+  // (из-за этого мелкие детали вроде глаз выглядели сплошными чёрными пятнами).
+  // depthWrite:false — иначе одна полупрозрачная деталь «записывает» глубину и перекрывает
+  // (прячет) другие детали позади себя при повороте, хотя сама при этом остаётся просвечивающей
+  const glassMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.26, depthWrite:false
+  });
+  // та же «стеклянная» заливка, но чуть плотнее — для мелких деталей (глаза, пятачок, прорезь),
+  // чтобы они оставались частью единой прозрачной фигуры, а не выглядели вставками другого материала
+  const glassDetailMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.4, depthWrite:false
+  });
+  const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd877, roughness: 0.25, metalness: 0.65, emissive: 0x7a5a1c, emissiveIntensity: 0.25 });
+  const copperMat = new THREE.MeshStandardMaterial({ color: 0xe0a06a, roughness: 0.3, metalness: 0.6, emissive: 0x6a3c1c, emissiveIntensity: 0.2 });
+  // нейтральный светлый серо-тёплый, малая непрозрачность — тонкая линия, а не заливка
+  const outlineMat = new THREE.MeshBasicMaterial({ color: 0x6b5f55, side: THREE.BackSide, transparent:true, opacity:0.16, depthWrite:false });
+  const seamMat = new THREE.MeshBasicMaterial({ color: 0x6b5f55, transparent:true, opacity:0.18, depthWrite:false });
+
+  // тонкий контур по силуэту — тонкая «обратная оболочка». Нужна только для крупных,
+  // далеко отстоящих друг от друга частей (тело, уши, ноги, хвост, пятачок) — там без неё
+  // фигуру не видно на фоне. Для мелких вложенных деталей (глаза, ноздри, прорезь) её НЕ
+  // используем: при такой же технике их выпуклая «оболочка» рисуется по всей площади
+  // детали, а не только по краю, и мелкая деталь превращается в сплошное тёмное пятно.
+  function addOutline(mesh, scale){
+    const outline = new THREE.Mesh(mesh.geometry, outlineMat);
+    outline.scale.setScalar(scale || 1.025);
+    mesh.add(outline);
+  }
+  // тонкая линия шва (как от литьевой формы) — сплющенное кольцо-меридиан
+  function addSeamRing(rx, ry, tube, y, parentRotX){
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, tube, 6, 64), seamMat);
+    ring.scale.set(rx, ry, 1);
+    ring.position.y = y || 0;
+    if(parentRotX) ring.rotation.x = parentRotX;
+    pigGroup.add(ring);
+    return ring;
+  }
+
+  // тело
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1.15, 48, 48), glassMat);
+  body.scale.set(1.3, 1.0, 1.1);
+  addOutline(body, 1.015);
+  pigGroup.add(body);
+  // продольный шов (видно сбоку, идёт от пятачка к хвосту) + поперечный у мордочки
+  addSeamRing(1.46, 1.12, 0.012, 0);
+  addSeamRing(1.0, 1.1, 0.01, 0, Math.PI/2.1);
+
+  // пятачок
+  const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.34, 28), glassMat);
+  snout.rotation.z = Math.PI/2;
+  snout.position.set(1.4, -0.08, 0);
+  addOutline(snout, 1.03);
+  pigGroup.add(snout);
+  [-0.12, 0.12].forEach(dz=>{
+    const n = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 10), glassDetailMat);
+    n.position.set(1.6, -0.08, dz);
+    pigGroup.add(n);
+  });
+
+  // глаза — та же стеклянная «плоть» фигурки, читаются по лёгкому уплотнению материала + блику
+  [-0.58, 0.58].forEach(dz=>{
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 16), glassDetailMat);
+    eye.position.set(0.88, 0.3, dz);
+    pigGroup.add(eye);
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), whiteMat);
+    shine.position.set(0.93, 0.35, dz + (dz>0?-0.04:0.04));
+    pigGroup.add(shine);
+  });
+
+  // уши
+  [-0.5, 0.5].forEach(dz=>{
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.32, 16), glassMat);
+    ear.scale.set(1, 1, 0.4);
+    ear.position.set(0.5, 0.95, dz);
+    ear.rotation.x = dz>0 ? 0.45 : -0.45;
+    ear.rotation.z = 0.25;
+    addOutline(ear, 1.04);
+    pigGroup.add(ear);
+  });
+
+  // ножки — короткие приплюснутые «подушечки», слегка утопленные в днище тела (не протыкают его)
+  const legPositions = [[-0.62,-1.03,0.52],[-0.62,-1.03,-0.52],[0.62,-1.03,0.52],[0.62,-1.03,-0.52]];
+  legPositions.forEach(([x,y,z])=>{
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.21,0.34,16), glassMat);
+    leg.position.set(x,y,z);
+    addOutline(leg, 1.04);
+    pigGroup.add(leg);
+  });
+
+  // хвостик
+  const tail = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 8, 20, Math.PI*1.4), glassMat);
+  tail.position.set(-1.3, 0.15, 0);
+  tail.rotation.y = Math.PI/2.3;
+  addOutline(tail, 1.12);
+  pigGroup.add(tail);
+
+  // прорезь для монет — тот же стеклянный материал, читается как уплотнение/выемка в теле
+  const slot = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.14), glassDetailMat);
+  slot.position.set(0.15, 1.12, 0);
+  pigGroup.add(slot);
+
+  // ---- монетки внутри: гравитация + столкновения со стенкой + кувырок и укладка «на ребро» или «плашмя» ----
+  coinGroup = new THREE.Group();
+  pigGroup.add(coinGroup);
+  const MAX_COINS_SHOWN = 24;
+  const coinMeshes = [];
+  const coinVel = [];     // линейная скорость
+  const coinAngVel = [];  // угловая скорость (кувырок при падении)
+  const coinSettle = [];  // целевой поворот, когда монета улеглась {x,y,z}
+  const coinSettled = []; // легла ли уже монета
+  const coinRestT = [];   // сколько подряд движется медленно (для определения «улеглась»)
+  // внутренняя полость — чуть меньше тела, чтобы монеты не протыкали стенки
+  const CAVITY = { rx: 1.12, ry: 0.84, rz: 0.95, floor: -0.9 };
+
+  // случайная устойчивая поза: ~70% «плашмя лицом к зрителю», ~30% «на ребре/боку» — как у настоящих монет
+  function randomSettlePose(){
+    const onEdge = Math.random() < 0.3;
+    const yaw = Math.random()*Math.PI*2;
+    return onEdge
+      ? { x: (Math.random()-0.5)*0.4, y: yaw, z: (Math.random()-0.5)*0.4 }
+      : { x: Math.PI/2 + (Math.random()-0.5)*0.35, y: yaw, z: (Math.random()-0.5)*0.35 };
+  }
+  function randomAngVel(){
+    return new THREE.Vector3((Math.random()-0.5)*8, (Math.random()-0.5)*8, (Math.random()-0.5)*8);
+  }
+
+  for(let i=0;i<MAX_COINS_SHOWN;i++){
+    const mat = i % 3 === 0 ? copperMat : goldMat;
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.025,16), mat);
+    const a = i*2.4, r = 0.25 + (i%7)*0.08;
+    c.position.set(Math.cos(a)*r*0.8, -0.5 + (i%6)*0.06, Math.sin(a)*r*0.6);
+    const pose = randomSettlePose();
+    c.rotation.set(pose.x, pose.y, pose.z);
+    c.visible = false;
+    coinGroup.add(c);
+    coinMeshes.push(c);
+    coinVel.push(new THREE.Vector3());
+    coinAngVel.push(randomAngVel());
+    coinSettle.push(pose);
+    coinSettled.push(true);
+    coinRestT.push(1);
+  }
+  function setCoinCount(n){
+    coinMeshes.forEach((m,i)=>{
+      const wasVisible = m.visible;
+      m.visible = i < Math.min(n, MAX_COINS_SHOWN);
+      // новая монета — она только что упала: пусть при падении кувыркается, а не сразу лежит красиво
+      if(m.visible && !wasVisible){
+        coinSettled[i] = false;
+        coinRestT[i] = 0;
+        coinAngVel[i].copy(randomAngVel());
+      }
+    });
+  }
+
+  const GRAVITY = 5.2;
+  const worldGravity = new THREE.Vector3(0, -GRAVITY, 0);
+  const localGravity = new THREE.Vector3();
+  const invQuat = new THREE.Quaternion();
+  const REST_SPEED = 0.35, DISTURB_SPEED = 0.7, SETTLE_DELAY = 0.35;
+  function stepCoinPhysics(dt){
+    invQuat.copy(pigGroup.quaternion).invert();
+    localGravity.copy(worldGravity).applyQuaternion(invQuat);
+    for(let i=0;i<coinMeshes.length;i++){
+      const m = coinMeshes[i];
+      if(!m.visible) continue;
+      const v = coinVel[i];
+      v.addScaledVector(localGravity, dt);
+      v.multiplyScalar(0.985); // затухание (трение/воздух)
+      m.position.addScaledVector(v, dt);
+      // пол полости
+      if(m.position.y < CAVITY.floor){ m.position.y = CAVITY.floor; if(v.y<0) v.y *= -0.25; }
+      // эллипсоидная стенка
+      const nx = m.position.x/CAVITY.rx, ny = (m.position.y+0.15)/CAVITY.ry, nz = m.position.z/CAVITY.rz;
+      const d = Math.sqrt(nx*nx+ny*ny+nz*nz);
+      if(d > 1){
+        const s = 1/d;
+        m.position.x *= s; m.position.y = m.position.y*s - 0.15*(s-1); m.position.z *= s;
+        v.multiplyScalar(0.4);
+      }
+
+      const speed = v.length();
+      if(speed > DISTURB_SPEED && coinSettled[i]){
+        // толчок (бросок новой монеты рядом, наклон копилки) — монета снова оживает и кувыркается
+        coinSettled[i] = false;
+        coinRestT[i] = 0;
+      }
+      if(!coinSettled[i]){
+        // падение/кувырок — крутится по всем осям
+        m.rotation.x += coinAngVel[i].x*dt;
+        m.rotation.y += coinAngVel[i].y*dt;
+        m.rotation.z += coinAngVel[i].z*dt;
+        if(speed < REST_SPEED){
+          coinRestT[i] += dt;
+          if(coinRestT[i] > SETTLE_DELAY){
+            coinSettled[i] = true;
+            coinSettle[i] = randomSettlePose(); // каждый раз заново — то плашмя, то на ребре
+          }
+        } else {
+          coinRestT[i] = 0;
+        }
+      } else {
+        // улеглась — плавно довернуть до устойчивой позы и больше не дёргать
+        const target = coinSettle[i];
+        m.rotation.x += (target.x - m.rotation.x) * Math.min(1, dt*6);
+        m.rotation.y += (target.y - m.rotation.y) * Math.min(1, dt*6);
+        m.rotation.z += (target.z - m.rotation.z) * Math.min(1, dt*6);
+      }
+    }
+  }
+
+  // лёгкий отскок при броске монеты
+  let bumpT = 0;
+  function bump(){ bumpT = 1; }
+
+  // ---- большая золотая монета-победитель (показывается вместо копилки между конкурсами) ----
+  const winnerCoinGroup = new THREE.Group(); // внешняя группа — на неё каждый кадр накладываются rotY/tiltX
+  winnerCoinGroup.visible = false;
+  scene.add(winnerCoinGroup);
+  // внутренняя группа с базовым наклоном: по умолчанию цилиндр «смотрит» лицевой гранью вверх,
+  // а монета должна сразу стоять лицом к зрителю — поэтому заранее разворачиваем её на 90°
+  const winnerCoinInner = new THREE.Group();
+  winnerCoinInner.rotation.x = Math.PI/2;
+  winnerCoinGroup.add(winnerCoinInner);
+
+  const winnerEdgeMat = new THREE.MeshStandardMaterial({ color: 0xcda349, roughness: 0.3, metalness: 0.7 });
+  const winnerFaceMat = new THREE.MeshBasicMaterial({ color: 0xf3e6c9 });
+  const winnerBackMat = new THREE.MeshBasicMaterial({ color: 0xf3e6c9 });
+  const winnerCoinGeo = new THREE.CylinderGeometry(1.25, 1.25, 0.22, 56, 1, false);
+  // материалы по группам граней: 0 — боковая кромка, 1 — верх (лицо), 2 — низ (оборот)
+  const winnerCoinMesh = new THREE.Mesh(winnerCoinGeo, [winnerEdgeMat, winnerFaceMat, winnerBackMat]);
+  addOutline(winnerCoinMesh, 1.025);
+  winnerCoinInner.add(winnerCoinMesh);
+
+  // лёгкая насечка по ребру монеты — тонкие рифления
+  for(let i=0;i<40;i++){
+    const ang = (i/40)*Math.PI*2;
+    const notch = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.24, 0.05), winnerEdgeMat);
+    notch.position.set(Math.cos(ang)*1.25, 0, Math.sin(ang)*1.25);
+    notch.rotation.y = -ang;
+    winnerCoinInner.add(notch);
+  }
+
+  const winnerTexLoader = new THREE.TextureLoader();
+  let winnerTex = null;
+  function showWinner(dataUrl){
+    winnerTexLoader.load(dataUrl, (tex)=>{
+      if(winnerTex) winnerTex.dispose();
+      winnerTex = tex;
+      winnerFaceMat.map = tex; winnerFaceMat.color.set(0xffffff); winnerFaceMat.needsUpdate = true;
+      winnerBackMat.map = tex; winnerBackMat.color.set(0xffffff); winnerBackMat.needsUpdate = true;
+    });
+    pigGroup.visible = false;
+    winnerCoinGroup.visible = true;
+  }
+  function showBank(){
+    winnerCoinGroup.visible = false;
+    pigGroup.visible = true;
+  }
+  function setSkin(hex){
+    const c = (hex===null || hex===undefined) ? 0xffffff : hex;
+    glassMat.color.set(c);
+    glassDetailMat.color.set(c);
+  }
+
+  function resize(){
+    const w = canvas.clientWidth || 300, h = canvas.clientHeight || 300;
+    renderer.setSize(w, h, false);
+    camera.aspect = w/h; camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  if(window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
+  resize();
+
+  // вращение и наклон пальцем/мышью — тянешь вбок, крутится; тянешь вверх/вниз, копилка наклоняется
+  // (от наклона внутри реально «едут» монеты — гравитация считается в системе координат копилки)
+  let dragging = false, lastX = 0, lastY = 0, rotY = -0.5, tiltX = 0.12, autoSpin = true;
+  function pointerDown(e){
+    dragging = true; autoSpin = false;
+    const p = e.touches ? e.touches[0] : e;
+    lastX = p.clientX; lastY = p.clientY;
+  }
+  function pointerMove(e){
+    if(!dragging) return;
+    const p = e.touches ? e.touches[0] : e;
+    rotY += (p.clientX - lastX) * 0.01;
+    tiltX = Math.max(-0.4, Math.min(0.4, tiltX + (p.clientY - lastY) * 0.01));
+    lastX = p.clientX; lastY = p.clientY;
+  }
+  function pointerUp(){ dragging = false; }
+  canvas.addEventListener('mousedown', pointerDown);
+  canvas.addEventListener('touchstart', pointerDown, {passive:true});
+  window.addEventListener('mousemove', pointerMove);
+  window.addEventListener('touchmove', pointerMove, {passive:true});
+  window.addEventListener('mouseup', pointerUp);
+  window.addEventListener('touchend', pointerUp);
+
+  const clock = new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    if(autoSpin && !dragging) rotY += 0.0035;
+    const activeGroup = winnerCoinGroup.visible ? winnerCoinGroup : pigGroup;
+    pigGroup.rotation.y = rotY; pigGroup.rotation.x = tiltX;
+    winnerCoinGroup.rotation.y = rotY; winnerCoinGroup.rotation.x = tiltX;
+    if(bumpT > 0){
+      activeGroup.scale.setScalar(1 + Math.sin(bumpT*Math.PI)*0.06);
+      bumpT -= 0.06;
+      if(bumpT<=0){ bumpT=0; pigGroup.scale.setScalar(1); winnerCoinGroup.scale.setScalar(1); }
+    }
+    const dt = Math.min(clock.getDelta(), 0.05);
+    if(pigGroup.visible) stepCoinPhysics(dt);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.bank3D = { setCoinCount, bump, showWinner, showBank, setSkin };
+  // применяем купленный в магазине скин копилки сразу при загрузке 3D-сцены
+  try{
+    const uname = JSON.parse(localStorage.getItem('ct_user')||'null');
+    const profs = JSON.parse(localStorage.getItem('ct_profiles')||'{}');
+    const skin = uname && profs[uname] && profs[uname].bankSkin;
+    const skinColors = {emerald:0x3ddc97, sapphire:0x4aa3ff, amber:0xffb84a, rose:0xff7fb0};
+    if(skin && skinColors[skin]) setSkin(skinColors[skin]);
+  }catch(e){}
+  setCoinCount((JSON.parse(localStorage.getItem('ct_coins')||'[]')||[]).length);
+
+  // если страница открыта в момент, когда победитель уже объявлен (между конкурсами) —
+  // сразу показываем монету-победителя, а не копилку
+  const savedContest = JSON.parse(localStorage.getItem('ct_contest')||'null');
+  if(savedContest && savedContest.winner){
+    const w = savedContest.winner;
+    showWinner(typeof w === 'string' ? w : w.img);
+  }
+})();
+</script>
+</body>
+</html>
