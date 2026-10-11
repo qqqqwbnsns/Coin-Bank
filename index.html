@@ -85,6 +85,20 @@
   .count{font-family:'Nunito',sans-serif; font-weight:800; font-size:15px; color:var(--gold); margin-top:6px;}
   .contest-banner{margin-top:14px; text-align:center; font-size:14px; color:var(--cream); background:rgba(0,0,0,.25); border:1px solid rgba(205,163,73,.35); border-radius:4px; padding:10px 14px;}
 
+  .force-draw-btn{
+    display:block; margin:18px auto 0; padding:12px 26px; border:none; border-radius:30px;
+    background:linear-gradient(135deg,#3b8bff,#1c5edb); color:#fff;
+    font-family:'Nunito',sans-serif; font-weight:800; font-size:15px; letter-spacing:.3px;
+    cursor:pointer; box-shadow:0 6px 18px rgba(28,94,219,.45), inset 0 1px 0 rgba(255,255,255,.25);
+    transition:transform .15s, box-shadow .15s; -webkit-tap-highlight-color:transparent;
+  }
+  .force-draw-btn:hover{ transform:translateY(-2px); box-shadow:0 9px 22px rgba(28,94,219,.55), inset 0 1px 0 rgba(255,255,255,.3); }
+  .force-draw-btn:active{ transform:translateY(0); box-shadow:0 4px 12px rgba(28,94,219,.4), inset 0 1px 0 rgba(255,255,255,.2); }
+  .force-draw-note{
+    margin:8px auto 0; max-width:320px; text-align:center; font-size:11.5px; line-height:1.4;
+    color:rgba(240,230,210,.55); font-family:'Nunito',sans-serif;
+  }
+
   /* ---- chat ---- */
   .chat{margin-top:26px; background:rgba(0,0,0,.28); border:1px solid rgba(205,163,73,.25); border-radius:6px; overflow:hidden;}
   .chat-head{padding:10px 14px; font-family:'Nunito',sans-serif; font-weight:800; font-size:14px; border-bottom:1px solid rgba(205,163,73,.2); color:var(--gold);}
@@ -448,6 +462,8 @@
       </div>
       <div class="count" id="coinCount">В копилке: 0 монет</div>
       <div id="contestBanner" class="contest-banner" style="display:none;"></div>
+      <button type="button" id="forceDrawBtn" class="force-draw-btn">⚡ Запустить розыгрыш</button>
+      <div class="force-draw-note" id="forceDrawNote">Кнопка есть только в демо-версии — в финальном сайте розыгрыш будет запускаться автоматически.</div>
     </div>
     <canvas id="confettiCanvas"></canvas>
 
@@ -526,6 +542,7 @@
       itemSkinDefault:'Прозрачная', itemSkinEmerald:'Изумрудная', itemSkinSapphire:'Сапфировая', itemSkinAmber:'Янтарная', itemSkinRose:'Розовый кварц',
       itemSceneDefault:'Бордовый театр', itemSceneEmerald:'Изумрудный театр', itemSceneMidnight:'Полночный синий', itemSceneRoyal:'Королевский фиолетовый',
       helpTitleAttr:'Путеводитель по сайту', helpCalloutText:'Нужна помощь? Нажми «?» — путеводитель покажет всё по порядку', langChooseTitle:'Выбрать язык', tourSkip:'Пропустить', tourBack:'Назад', tourNext:'Далее', tourDone:'Готово',
+      forceDrawBtn:'⚡ Запустить розыгрыш', forceDrawNote:'Кнопка есть только в демо-версии — в финальном сайте розыгрыш будет запускаться автоматически, когда копилка наполнится.', toastForceDrawEmpty:'В копилке нет ни одной монеты — сначала бросьте хотя бы одну в «Мастерской».', toastForceDrawWaitReopen:'Копилка как раз показывает победителя — подождите пару секунд.',
       podiumTitle:'🏛️ Пьедестал зрительских симпатий',
       voteSub:'Голосуйте за понравившиеся монеты — учитываются все {n} монет в галерее. Следующее голосование откроется через {r} {unit}.',
       voteUnitOne:'монету', voteUnitFew:'монеты', votesSuffix:'голос.', voteBtn:'Голосовать', votedBtn:'Ваш голос ✓',
@@ -583,6 +600,7 @@
       itemSkinDefault:'Clear', itemSkinEmerald:'Emerald', itemSkinSapphire:'Sapphire', itemSkinAmber:'Amber', itemSkinRose:'Rose quartz',
       itemSceneDefault:'Burgundy theatre', itemSceneEmerald:'Emerald theatre', itemSceneMidnight:'Midnight blue', itemSceneRoyal:'Royal purple',
       helpTitleAttr:'Site guide', helpCalloutText:'Need help? Tap "?" for the guided tour', langChooseTitle:'Choose language', tourSkip:'Skip', tourBack:'Back', tourNext:'Next', tourDone:'Done',
+      forceDrawBtn:'⚡ Run the draw', forceDrawNote:'This button only exists in the demo — on the final site the draw will start automatically once the bank fills up.', toastForceDrawEmpty:"There are no coins in the bank yet — throw at least one in the Workshop first.", toastForceDrawWaitReopen:'The bank is still showing the winner — give it a couple of seconds.',
       podiumTitle:'🏛️ Audience Favorites Podium',
       voteSub:'Vote for the coins you like — all {n} coins in the gallery count. The next vote opens after {r} more {unit}.',
       voteUnitOne:'coin', voteUnitFew:'coins', votesSuffix:'votes', voteBtn:'Vote', votedBtn:'Your vote ✓',
@@ -750,6 +768,8 @@
     byId('helpFab','title', t('helpTitleAttr'));
     const hcText = document.getElementById('helpCalloutText');
     if(hcText) hcText.textContent = t('helpCalloutText');
+    byId('forceDrawBtn','textContent', t('forceDrawBtn'));
+    byId('forceDrawNote','textContent', t('forceDrawNote'));
     byId('tourSkip','textContent', t('tourSkip'));
     byId('tourBack','textContent', t('tourBack'));
     byId('dragHintText','textContent', t('dragHint'));
@@ -1162,6 +1182,14 @@
     launchConfetti();
   }
   setInterval(renderCount, 1000);
+
+  // демо-кнопка принудительного запуска розыгрыша — чтобы не ждать 5 монет
+  // и таймер, тестируя механику с несколькими аккаунтами
+  document.getElementById('forceDrawBtn').addEventListener('click', ()=>{
+    if(contest && contest.winner){ showToast(t('toastForceDrawWaitReopen')); return; }
+    if(coins.length === 0){ showToast(t('toastForceDrawEmpty')); return; }
+    finishContest();
+  });
 
   // confetti
   const confettiCanvas = document.getElementById('confettiCanvas');
